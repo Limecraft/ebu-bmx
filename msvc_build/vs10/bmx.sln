@@ -7,7 +7,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libMXF", "..\..\..\ebu-libm
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libMXF++", "..\..\..\ebu-libMXFpp\msvc_build\vs10\libMXF++\libMXF++.vcxproj", "{33E3C49F-5483-4081-9446-9238A59B761A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "uriparser", "..\..\..\uriparser\win32\Visual_Studio_2005\uriparser.vcxproj", "{8E2F76A2-59B5-4DF7-8062-EBD6FCF0C8B3}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "uriparser", "..\..\..\uriparser\win32\Visual_Studio_2010\uriparser.vcxproj", "{8E2F76A2-59B5-4DF7-8062-EBD6FCF0C8B3}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bmxtranswrap", "apps\bmxtranswrap\bmxtranswrap.vcxproj", "{66CB2EA7-A853-45D1-80BC-254E451DE950}"
 EndProject
