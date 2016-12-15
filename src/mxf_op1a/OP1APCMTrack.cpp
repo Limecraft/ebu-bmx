@@ -34,6 +34,7 @@
 #endif
 
 #include <bmx/mxf_op1a/OP1APCMTrack.h>
+#include <bmx/mxf_op1a/OP1AFile.h>
 #include <bmx/MXFUtils.h>
 #include <bmx/Utils.h>
 #include <bmx/BMXException.h>
@@ -44,7 +45,11 @@ using namespace bmx;
 using namespace mxfpp;
 
 
-static const mxfKey AUDIO_ELEMENT_KEY = MXF_AES3BWF_EE_K(0x01, MXF_BWF_FRAME_WRAPPED_EE_TYPE, 0x00);
+static const mxfKey BWF_ELEMENT_FW_KEY    = MXF_AES3BWF_EE_K(0x01, MXF_BWF_FRAME_WRAPPED_EE_TYPE, 0x00);
+static const mxfKey BWF_ELEMENT_CW_KEY    = MXF_AES3BWF_EE_K(0x01, MXF_BWF_CLIP_WRAPPED_EE_TYPE, 0x00);
+static const mxfKey AES3_ELEMENT_FW_KEY   = MXF_AES3BWF_EE_K(0x01, MXF_AES3_FRAME_WRAPPED_EE_TYPE, 0x00);
+static const mxfKey AES3_ELEMENT_CW_KEY   = MXF_AES3BWF_EE_K(0x01, MXF_AES3_CLIP_WRAPPED_EE_TYPE, 0x00);
+static const uint8_t AUDIO_ELEMENT_CW_LLEN  = 8;
 
 
 
@@ -61,9 +66,18 @@ OP1APCMTrack::OP1APCMTrack(OP1AFile *file, uint32_t track_index, uint32_t track_
     mWaveDescriptorHelper->SetQuantizationBits(16);
     mWaveDescriptorHelper->SetChannelCount(1);
 
-    mIsPicture = false;
-    mTrackNumber = MXF_AES3BWF_TRACK_NUM(0x01, MXF_BWF_FRAME_WRAPPED_EE_TYPE, 0x00);
-    mEssenceElementKey = AUDIO_ELEMENT_KEY;
+    if (mOP1AFile->IsFrameWrapped()) {
+        if ((file->GetFlavour() & OP1A_ARD_ZDF_HDF_PROFILE_FLAVOUR))
+            mWaveDescriptorHelper->SetSampleRate(SAMPLING_RATE_48K);
+    } else {
+        mEditRate = mWaveDescriptorHelper->GetSamplingRate();
+        mWaveDescriptorHelper->SetSampleRate(mEditRate);
+    }
+
+    if ((file->GetFlavour() & OP1A_ARD_ZDF_HDF_PROFILE_FLAVOUR))
+        SetAES3Mapping(true);
+    else
+        SetAES3Mapping(false);
 
     SetSampleSequence();
 }
@@ -72,11 +86,39 @@ OP1APCMTrack::~OP1APCMTrack()
 {
 }
 
+void OP1APCMTrack::SetAES3Mapping(bool enable)
+{
+    if (enable) {
+        mWaveDescriptorHelper->SetUseAES3AudioDescriptor(true);
+        if (mOP1AFile->IsFrameWrapped()) {
+            mTrackNumber = MXF_AES3BWF_TRACK_NUM(0x01, MXF_AES3_FRAME_WRAPPED_EE_TYPE, 0x00);
+            mEssenceElementKey = AES3_ELEMENT_FW_KEY;
+        } else {
+            mTrackNumber = MXF_AES3BWF_TRACK_NUM(0x01, MXF_AES3_CLIP_WRAPPED_EE_TYPE, 0x00);
+            mEssenceElementKey = AES3_ELEMENT_CW_KEY;
+        }
+    } else {
+        mWaveDescriptorHelper->SetUseAES3AudioDescriptor(false);
+        if (mOP1AFile->IsFrameWrapped()) {
+            mTrackNumber = MXF_AES3BWF_TRACK_NUM(0x01, MXF_BWF_FRAME_WRAPPED_EE_TYPE, 0x00);
+            mEssenceElementKey = BWF_ELEMENT_FW_KEY;
+        } else {
+            mTrackNumber = MXF_AES3BWF_TRACK_NUM(0x01, MXF_BWF_CLIP_WRAPPED_EE_TYPE, 0x00);
+            mEssenceElementKey = BWF_ELEMENT_CW_KEY;
+        }
+    }
+}
+
 void OP1APCMTrack::SetSamplingRate(mxfRational sampling_rate)
 {
     BMX_CHECK(sampling_rate == SAMPLING_RATE_48K);
 
     mWaveDescriptorHelper->SetSamplingRate(sampling_rate);
+
+    if (!mOP1AFile->IsFrameWrapped()) {
+        mEditRate = sampling_rate;
+        mDescriptorHelper->SetSampleRate(sampling_rate);
+    }
 
     SetSampleSequence();
 }
@@ -115,6 +157,62 @@ void OP1APCMTrack::SetSequenceOffset(uint8_t offset)
     SetSampleSequence();
 }
 
+void OP1APCMTrack::SetChannelAssignment(UL label)
+{
+    mWaveDescriptorHelper->SetChannelAssignment(label);
+}
+
+AudioChannelLabelSubDescriptor* OP1APCMTrack::AddAudioChannelLabel(AudioChannelLabelSubDescriptor *copy_from)
+{
+    AudioChannelLabelSubDescriptor *desc;
+    if (copy_from)
+        desc = dynamic_cast<AudioChannelLabelSubDescriptor*>(copy_from->clone(mOP1AFile->GetHeaderMetadata()));
+    else
+        desc = new AudioChannelLabelSubDescriptor(mOP1AFile->GetHeaderMetadata());
+    desc->setMCALinkID(generate_uuid());
+    mMCALabels.push_back(desc);
+
+    if (mOP1AFile->HavePreparedHeaderMetadata())
+      mDescriptorHelper->GetFileDescriptor()->appendSubDescriptors(mMCALabels.back());
+
+    return desc;
+}
+
+SoundfieldGroupLabelSubDescriptor* OP1APCMTrack::AddSoundfieldGroupLabel(SoundfieldGroupLabelSubDescriptor *copy_from)
+{
+    SoundfieldGroupLabelSubDescriptor *desc;
+    if (copy_from) {
+        desc = dynamic_cast<SoundfieldGroupLabelSubDescriptor*>(copy_from->clone(mOP1AFile->GetHeaderMetadata()));
+    } else {
+        desc = new SoundfieldGroupLabelSubDescriptor(mOP1AFile->GetHeaderMetadata());
+        desc->setMCALinkID(generate_uuid());
+    }
+    mMCALabels.push_back(desc);
+
+    if (mOP1AFile->HavePreparedHeaderMetadata())
+      mDescriptorHelper->GetFileDescriptor()->appendSubDescriptors(mMCALabels.back());
+
+    return desc;
+}
+
+GroupOfSoundfieldGroupsLabelSubDescriptor* OP1APCMTrack::AddGroupOfSoundfieldGroupLabel(
+        GroupOfSoundfieldGroupsLabelSubDescriptor *copy_from)
+{
+    GroupOfSoundfieldGroupsLabelSubDescriptor *desc;
+    if (copy_from) {
+        desc = dynamic_cast<GroupOfSoundfieldGroupsLabelSubDescriptor*>(copy_from->clone(mOP1AFile->GetHeaderMetadata()));
+    } else {
+        desc = new GroupOfSoundfieldGroupsLabelSubDescriptor(mOP1AFile->GetHeaderMetadata());
+        desc->setMCALinkID(generate_uuid());
+    }
+    mMCALabels.push_back(desc);
+
+    if (mOP1AFile->HavePreparedHeaderMetadata())
+      mDescriptorHelper->GetFileDescriptor()->appendSubDescriptors(mMCALabels.back());
+
+    return desc;
+}
+
 vector<uint32_t> OP1APCMTrack::GetShiftedSampleSequence() const
 {
     vector<uint32_t> shifted_sample_sequence = mSampleSequence;
@@ -123,14 +221,49 @@ vector<uint32_t> OP1APCMTrack::GetShiftedSampleSequence() const
     return shifted_sample_sequence;
 }
 
-void OP1APCMTrack::PrepareWrite(uint8_t picture_track_count, uint8_t sound_track_count)
+uint32_t OP1APCMTrack::GetChannelCount() const
 {
-    (void)picture_track_count;
+    return mWaveDescriptorHelper->GetChannelCount();
+}
 
-    CompleteEssenceKeyAndTrackNum(sound_track_count);
+void OP1APCMTrack::AddHeaderMetadata(HeaderMetadata *header_metadata, MaterialPackage *material_package,
+                                     SourcePackage *file_source_package)
+{
+    size_t i;
+    for (i = 0; i < mMCALabels.size(); i++) {
+        MCALabelSubDescriptor *desc = mMCALabels[i];
+        BMX_CHECK(desc->validate(true));
 
-    mCPManager->RegisterSoundTrackElement(mTrackIndex, mEssenceElementKey,
-                                          GetShiftedSampleSequence(), mWaveDescriptorHelper->GetSampleSize());
+        const AudioChannelLabelSubDescriptor *c_desc  = dynamic_cast<const AudioChannelLabelSubDescriptor*>(desc);
+        if (c_desc) {
+            if (c_desc->haveMCAChannelID()) {
+                BMX_CHECK(c_desc->getMCAChannelID() > 0);
+                BMX_CHECK(c_desc->getMCAChannelID() <= mWaveDescriptorHelper->GetChannelCount());
+            } else {
+                BMX_CHECK(mWaveDescriptorHelper->GetChannelCount() == 1);
+            }
+        }
+    }
+
+    OP1ATrack::AddHeaderMetadata(header_metadata, material_package, file_source_package);
+
+    for (i = 0; i < mMCALabels.size(); i++) {
+        header_metadata->moveToEnd(mMCALabels[i]); // so that they appear after the descriptor in the file
+        mDescriptorHelper->GetFileDescriptor()->appendSubDescriptors(mMCALabels[i]);
+    }
+}
+
+void OP1APCMTrack::PrepareWrite(uint8_t track_count)
+{
+    CompleteEssenceKeyAndTrackNum(track_count);
+
+    if (mOP1AFile->IsFrameWrapped()) {
+        mCPManager->RegisterSoundTrackElement(mTrackIndex, mEssenceElementKey,
+                                              GetShiftedSampleSequence(), mWaveDescriptorHelper->GetSampleSize());
+    } else {
+        mCPManager->RegisterSoundTrackElement(mTrackIndex, mEssenceElementKey, AUDIO_ELEMENT_CW_LLEN);
+    }
+
     mIndexTable->RegisterSoundTrackElement(mTrackIndex);
 }
 
@@ -139,4 +272,3 @@ void OP1APCMTrack::SetSampleSequence()
     mSampleSequence.clear();
     BMX_CHECK(get_sample_sequence(mFrameRate, mWaveDescriptorHelper->GetSamplingRate(), &mSampleSequence));
 }
-

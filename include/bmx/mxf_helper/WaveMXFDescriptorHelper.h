@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_WAVE_MXF_DESCRIPTOR_HELPER_H__
-#define __BMX_WAVE_MXF_DESCRIPTOR_HELPER_H__
+#ifndef BMX_WAVE_MXF_DESCRIPTOR_HELPER_H_
+#define BMX_WAVE_MXF_DESCRIPTOR_HELPER_H_
 
 
 #include <bmx/mxf_helper/SoundMXFDescriptorHelper.h>
@@ -57,7 +57,9 @@ public:
 
 public:
     // configure and create new descriptor
-    void SetSequenceOffset(uint8_t offset); // default not set (0)
+    void SetSequenceOffset(uint8_t offset);         // default not set (0)
+    void SetUseAES3AudioDescriptor(bool enable);    // default Wave audio descriptor
+    void SetChannelAssignment(mxfUL label);         // default not set
 
     virtual mxfpp::FileDescriptor* CreateFileDescriptor(mxfpp::HeaderMetadata *header_metadata);
     virtual void UpdateFileDescriptor();
@@ -72,6 +74,8 @@ public:
 
 private:
     uint8_t mSequenceOffset;
+    bool mUseAES3AudioDescriptor;
+    mxfUL mChannelAssignment;
 };
 
 

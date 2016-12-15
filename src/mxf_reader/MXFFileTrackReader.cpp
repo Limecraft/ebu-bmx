@@ -33,9 +33,11 @@
 #include "config.h"
 #endif
 
+#include <cstring>
+
 #include <bmx/mxf_reader/MXFFileTrackReader.h>
 #include <bmx/mxf_reader/MXFFileReader.h>
-#include <bmx/essence_parser/AVCIEssenceParser.h>
+#include <bmx/essence_parser/AVCEssenceParser.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -66,6 +68,11 @@ MXFFileTrackReader::~MXFFileTrackReader()
     delete [] mAVCIHeader;
 }
 
+void MXFFileTrackReader::SetEmptyFrames(bool enable)
+{
+    mFrameBuffer.SetEmptyFrames(enable);
+}
+
 void MXFFileTrackReader::SetEnable(bool enable)
 {
     mIsEnabled = enable;
@@ -76,9 +83,24 @@ void MXFFileTrackReader::SetFrameBuffer(FrameBuffer *frame_buffer, bool take_own
     mFrameBuffer.SetTargetBuffer(frame_buffer, take_ownership);
 }
 
-void MXFFileTrackReader::GetAvailableReadLimits(int64_t *start_position, int64_t *duration) const
+vector<size_t> MXFFileTrackReader::GetFileIds(bool internal_ess_only) const
 {
-    return mFileReader->GetAvailableReadLimits(start_position, duration);
+    (void)internal_ess_only;
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4267) // avoid bogus VS8 warning: 'argument' : conversion from 'size_t' to 'const uint32_t', possible loss of data
+#endif
+
+    return vector<size_t>(1, mFileReader->GetFileId());
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+}
+
+void MXFFileTrackReader::GetReadLimits(bool limit_to_available, int64_t *start_position, int64_t *duration) const
+{
+    return mFileReader->GetReadLimits(limit_to_available, start_position, duration);
 }
 
 void MXFFileTrackReader::SetReadLimits()
@@ -106,6 +128,16 @@ uint32_t MXFFileTrackReader::Read(uint32_t num_samples, bool is_top)
     return mFileReader->Read(num_samples, is_top);
 }
 
+bool MXFFileTrackReader::ReadError() const
+{
+    return mFileReader->ReadError();
+}
+
+string MXFFileTrackReader::ReadErrorMessage() const
+{
+    return mFileReader->ReadErrorMessage();
+}
+
 void MXFFileTrackReader::Seek(int64_t position)
 {
     mFileReader->Seek(position);
@@ -116,14 +148,19 @@ int64_t MXFFileTrackReader::GetPosition() const
     return mFileReader->GetPosition();
 }
 
-mxfRational MXFFileTrackReader::GetSampleRate() const
+mxfRational MXFFileTrackReader::GetEditRate() const
 {
-    return mFileReader->GetSampleRate();
+    return mFileReader->GetEditRate();
 }
 
 int64_t MXFFileTrackReader::GetDuration() const
 {
     return mFileReader->GetDuration();
+}
+
+int64_t MXFFileTrackReader::GetOrigin() const
+{
+    return mFileReader->GetOrigin();
 }
 
 bool MXFFileTrackReader::GetIndexEntry(MXFIndexEntryExt *entry, int64_t position) const
@@ -141,9 +178,9 @@ int16_t MXFFileTrackReader::GetRollout(int64_t position, bool limit_to_available
     return mFileReader->GetInternalRollout(position, limit_to_available);
 }
 
-void MXFFileTrackReader::SetNextFramePosition(int64_t position)
+void MXFFileTrackReader::SetNextFramePosition(Rational edit_rate, int64_t position)
 {
-    mFileReader->SetNextFramePosition(position);
+    mFileReader->SetNextFramePosition(edit_rate, position);
 }
 
 void MXFFileTrackReader::SetAVCIHeader(const unsigned char *frame_data, uint32_t frame_data_size)

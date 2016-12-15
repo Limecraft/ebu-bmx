@@ -33,6 +33,8 @@
 #include "config.h"
 #endif
 
+#include <cstdio>
+
 #include <bmx/as02/AS02PCMTrack.h>
 #include <bmx/as02/AS02Clip.h>
 #include <bmx/MXFUtils.h>
@@ -119,12 +121,22 @@ void AS02PCMTrack::SetSequenceOffset(uint8_t offset)
     SetSampleSequence();
 }
 
+void AS02PCMTrack::SetChannelAssignment(UL label)
+{
+    mWaveDescriptorHelper->SetChannelAssignment(label);
+}
+
 vector<uint32_t> AS02PCMTrack::GetShiftedSampleSequence() const
 {
     vector<uint32_t> shifted_sample_sequence = mSampleSequence;
     offset_sample_sequence(shifted_sample_sequence, mWaveDescriptorHelper->GetSequenceOffset());
 
     return shifted_sample_sequence;
+}
+
+uint32_t AS02PCMTrack::GetChannelCount() const
+{
+    return mWaveDescriptorHelper->GetChannelCount();
 }
 
 void AS02PCMTrack::WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples)

@@ -1,6 +1,8 @@
 library_includedir = $(includedir)/bmx-@BMX_MAJORMINOR@
 nobase_library_include_HEADERS = \
+	bmx/BitBuffer.h \
 	bmx/ByteArray.h \
+	bmx/Checksum.h \
 	bmx/CRC32.h \
 	bmx/EssenceType.h \
 	bmx/BMXException.h \
@@ -8,6 +10,8 @@ nobase_library_include_HEADERS = \
 	bmx/KLVParser.h \
 	bmx/Logging.h \
 	bmx/MD5.h \
+	bmx/MXFChecksumFile.h \
+	bmx/MXFHTTPFile.h \
 	bmx/MXFUtils.h \
 	bmx/SHA1.h \
 	bmx/URI.h \
@@ -15,11 +19,24 @@ nobase_library_include_HEADERS = \
 	bmx/XMLUtils.h \
 	bmx/XMLWriter.h \
 	bmx/Version.h \
+	bmx/apps/AppInfoWriter.h \
+	bmx/apps/AppMCALabelHelper.h \
+	bmx/apps/AppMXFFileFactory.h \
+	bmx/apps/AppTextInfoWriter.h \
+	bmx/apps/AppUtils.h \
+	bmx/apps/AppXMLInfoWriter.h \
+	bmx/apps/AS10Helper.h \
+	bmx/apps/AS11Helper.h \
+	bmx/apps/FrameworkHelper.h \
 	bmx/frame/DataBufferArray.h \
 	bmx/frame/Frame.h \
 	bmx/frame/FrameBuffer.h \
+	bmx/writer_helper/AVCWriterHelper.h \
 	bmx/writer_helper/AVCIWriterHelper.h \
+	bmx/writer_helper/D10WriterHelper.h \
 	bmx/writer_helper/MPEG2LGWriterHelper.h \
+	bmx/writer_helper/VC2WriterHelper.h \
+	bmx/writer_helper/XMLWriterHelper.h \
 	bmx/as02/AS02AVCITrack.h \
 	bmx/as02/AS02Bundle.h \
 	bmx/as02/AS02Clip.h \
@@ -33,19 +50,30 @@ nobase_library_include_HEADERS = \
 	bmx/as02/AS02Track.h \
 	bmx/as02/AS02UncTrack.h \
 	bmx/as02/AS02Version.h \
-	bmx/as11/AS11Clip.h \
+	bmx/as10/AS10DMS.h \
+	bmx/as10/AS10CoreFramework.h \
+	bmx/as10/AS10Info.h \
+	bmx/as10/AS10MPEG2Validator.h \
+	bmx/as10/AS10RDD9Validator.h \
+	bmx/as10/AS10ShimNames.h \
+	bmx/as10/AS10WriterHelper.h \
+	bmx/as10/as10_extensions_data_model.h \
 	bmx/as11/AS11DMS.h \
 	bmx/as11/AS11CoreFramework.h \
 	bmx/as11/AS11Info.h \
+	bmx/as11/AS11Labels.h \
 	bmx/as11/AS11SegmentationFramework.h \
-	bmx/as11/AS11Track.h \
+	bmx/as11/AS11WriterHelper.h \
 	bmx/as11/UKDPPDMS.h \
 	bmx/as11/UKDPPFramework.h \
 	bmx/as11/as11_extensions_data_model.h \
 	bmx/as11/uk_dpp_extensions_data_model.h \
+	bmx/mxf_op1a/OP1AANCDataTrack.h \
 	bmx/mxf_op1a/OP1AAVCITrack.h \
+	bmx/mxf_op1a/OP1AAVCTrack.h \
 	bmx/mxf_op1a/OP1AContentPackage.h \
 	bmx/mxf_op1a/OP1AD10Track.h \
+	bmx/mxf_op1a/OP1ADataTrack.h \
 	bmx/mxf_op1a/OP1ADVTrack.h \
 	bmx/mxf_op1a/OP1AFile.h \
 	bmx/mxf_op1a/OP1AIndexTable.h \
@@ -54,12 +82,28 @@ nobase_library_include_HEADERS = \
 	bmx/mxf_op1a/OP1APictureTrack.h \
 	bmx/mxf_op1a/OP1ATrack.h \
 	bmx/mxf_op1a/OP1AUncTrack.h \
+	bmx/mxf_op1a/OP1AVBIDataTrack.h \
+	bmx/mxf_op1a/OP1AVC2Track.h \
 	bmx/mxf_op1a/OP1AVC3Track.h \
+	bmx/mxf_op1a/OP1AXMLTrack.h \
 	bmx/d10_mxf/D10ContentPackage.h \
 	bmx/d10_mxf/D10File.h \
 	bmx/d10_mxf/D10MPEGTrack.h \
 	bmx/d10_mxf/D10PCMTrack.h \
 	bmx/d10_mxf/D10Track.h \
+	bmx/d10_mxf/D10XMLTrack.h \
+	bmx/rdd9_mxf/RDD9ANCDataTrack.h \
+	bmx/rdd9_mxf/RDD9ContentPackage.h \
+	bmx/rdd9_mxf/RDD9DataTrack.h \
+	bmx/rdd9_mxf/RDD9File.h \
+	bmx/rdd9_mxf/RDD9Flavours.h \
+	bmx/rdd9_mxf/RDD9IndexTable.h \
+	bmx/rdd9_mxf/RDD9MPEG2LGTrack.h \
+	bmx/rdd9_mxf/RDD9PCMTrack.h \
+	bmx/rdd9_mxf/RDD9Track.h \
+	bmx/rdd9_mxf/RDD9Validator.h \
+	bmx/rdd9_mxf/RDD9VBIDataTrack.h \
+	bmx/rdd9_mxf/RDD9XMLTrack.h \
 	bmx/avid_mxf/AvidAlphaTrack.h \
 	bmx/avid_mxf/AvidAVCITrack.h \
 	bmx/avid_mxf/AvidClip.h \
@@ -77,25 +121,40 @@ nobase_library_include_HEADERS = \
 	bmx/clip_writer/ClipWriter.h \
 	bmx/clip_writer/ClipWriterTrack.h \
 	bmx/essence_parser/SoundConversion.h \
-	bmx/essence_parser/AVCIEssenceParser.h \
+	bmx/essence_parser/AVCEssenceParser.h \
 	bmx/essence_parser/AVCIRawEssenceReader.h \
 	bmx/essence_parser/DVEssenceParser.h \
+	bmx/essence_parser/EssenceFilter.h \
 	bmx/essence_parser/EssenceParser.h \
+	bmx/essence_parser/EssenceSource.h \
+	bmx/essence_parser/FileEssenceSource.h \
+	bmx/essence_parser/KLVEssenceSource.h \
 	bmx/essence_parser/MJPEGEssenceParser.h \
+	bmx/essence_parser/MPEG2AspectRatioFilter.h \
 	bmx/essence_parser/MPEG2EssenceParser.h \
 	bmx/essence_parser/RawEssenceReader.h \
+	bmx/essence_parser/VC2EssenceParser.h \
 	bmx/essence_parser/VC3EssenceParser.h \
+	bmx/mxf_helper/ANCDataMXFDescriptorHelper.h \
 	bmx/mxf_helper/AVCIMXFDescriptorHelper.h \
+	bmx/mxf_helper/AVCMXFDescriptorHelper.h \
 	bmx/mxf_helper/D10MXFDescriptorHelper.h \
+	bmx/mxf_helper/DataMXFDescriptorHelper.h \
 	bmx/mxf_helper/DVMXFDescriptorHelper.h \
+	bmx/mxf_helper/EssenceValidator.h \
 	bmx/mxf_helper/MJPEGMXFDescriptorHelper.h \
 	bmx/mxf_helper/MPEG2LGMXFDescriptorHelper.h \
+	bmx/mxf_helper/MPEG2Validator.h \
 	bmx/mxf_helper/MXFDescriptorHelper.h \
 	bmx/mxf_helper/MXFFileFactory.h \
+	bmx/mxf_helper/MXFMCALabelHelper.h \
 	bmx/mxf_helper/PictureMXFDescriptorHelper.h \
 	bmx/mxf_helper/SoundMXFDescriptorHelper.h \
 	bmx/mxf_helper/UncCDCIMXFDescriptorHelper.h \
 	bmx/mxf_helper/UncRGBAMXFDescriptorHelper.h \
+	bmx/mxf_helper/UniqueIdHelper.h \
+	bmx/mxf_helper/VBIDataMXFDescriptorHelper.h \
+	bmx/mxf_helper/VC2MXFDescriptorHelper.h \
 	bmx/mxf_helper/VC3MXFDescriptorHelper.h \
 	bmx/mxf_helper/WaveMXFDescriptorHelper.h \
 	bmx/mxf_reader/EssenceChunkHelper.h \
@@ -103,18 +162,24 @@ nobase_library_include_HEADERS = \
 	bmx/mxf_reader/FrameMetadataReader.h \
 	bmx/mxf_reader/IndexTableHelper.h \
 	bmx/mxf_reader/MXFAPPInfo.h \
+	bmx/mxf_reader/MXFFileIndex.h \
 	bmx/mxf_reader/MXFFileReader.h \
 	bmx/mxf_reader/MXFFileTrackReader.h \
 	bmx/mxf_reader/MXFFrameBuffer.h \
 	bmx/mxf_reader/MXFFrameMetadata.h \
 	bmx/mxf_reader/MXFGroupReader.h \
 	bmx/mxf_reader/MXFIndexEntryExt.h \
+	bmx/mxf_reader/MXFMCALabelIndex.h \
 	bmx/mxf_reader/MXFPackageResolver.h \
 	bmx/mxf_reader/MXFReader.h \
 	bmx/mxf_reader/MXFSequenceReader.h \
 	bmx/mxf_reader/MXFSequenceTrackReader.h \
+	bmx/mxf_reader/MXFTextObject.h \
 	bmx/mxf_reader/MXFTrackInfo.h \
 	bmx/mxf_reader/MXFTrackReader.h \
+	bmx/st436/RDD6BitBuffer.h \
+	bmx/st436/RDD6Metadata.h \
+	bmx/st436/ST436Element.h \
 	bmx/wave/WaveBEXT.h \
 	bmx/wave/WaveIO.h \
 	bmx/wave/WaveFileIO.h \

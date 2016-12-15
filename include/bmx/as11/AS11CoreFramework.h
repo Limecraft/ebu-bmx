@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AS11_CORE_FRAMEWORK_H__
-#define __BMX_AS11_CORE_FRAMEWORK_H__
+#ifndef BMX_AS11_CORE_FRAMEWORK_H_
+#define BMX_AS11_CORE_FRAMEWORK_H_
 
 
 #include <libMXF++/metadata/DMFramework.h>
@@ -60,6 +60,7 @@ public:
     std::string GetProgrammeTitle();
     std::string GetEpisodeTitleNumber();
     std::string GetShimName();
+    mxfVersionType GetShimVersion();
     uint8_t GetAudioTrackLayout();
     std::string GetPrimaryAudioLanguage();
     bool GetClosedCaptionsPresent();
@@ -72,6 +73,7 @@ public:
     void SetProgrammeTitle(std::string value);
     void SetEpisodeTitleNumber(std::string value);
     void SetShimName(std::string value);
+    void SetShimVersion(mxfVersionType value);
     void SetAudioTrackLayout(uint8_t value);
     void SetPrimaryAudioLanguage(std::string value);
     void SetClosedCaptionsPresent(bool value);

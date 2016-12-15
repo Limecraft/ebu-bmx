@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_OP1A_PICTURE_TRACK_H__
-#define __BMX_OP1A_PICTURE_TRACK_H__
+#ifndef BMX_OP1A_PICTURE_TRACK_H_
+#define BMX_OP1A_PICTURE_TRACK_H_
 
 #include <bmx/mxf_op1a/OP1ATrack.h>
 #include <bmx/mxf_helper/PictureMXFDescriptorHelper.h>
@@ -48,12 +48,11 @@ public:
                      mxfRational frame_rate, EssenceType essence_type);
     virtual ~OP1APictureTrack();
 
-    void SetAspectRatio(mxfRational aspect_ratio);      // default 16/9
-    void SetPartitionInterval(int64_t frame_count);     // default 0 (single partition)
-    void SetAFD(uint8_t afd);                           // default not set
+    void SetAspectRatio(mxfRational aspect_ratio);
+    void SetAFD(uint8_t afd);
 
 protected:
-    virtual void PrepareWrite(uint8_t picture_track_count, uint8_t sound_track_count);
+    virtual void PrepareWrite(uint8_t track_count);
 
 protected:
     PictureMXFDescriptorHelper *mPictureDescriptorHelper;

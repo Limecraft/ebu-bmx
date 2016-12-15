@@ -29,10 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_OP1A_INDEX_TABLE_H__
-#define __BMX_OP1A_INDEX_TABLE_H__
+#ifndef BMX_OP1A_INDEX_TABLE_H_
+#define BMX_OP1A_INDEX_TABLE_H_
 
 #include <vector>
+#include <set>
 
 #include <bmx/ByteArray.h>
 
@@ -76,24 +77,41 @@ public:
 class OP1AIndexTableElement
 {
 public:
-    OP1AIndexTableElement(uint32_t track_index_, bool is_picture_, bool is_cbe_, bool apply_temporal_reordering_);
+  typedef enum
+  {
+    SYSTEM_ITEM_ELEMENT,
+    DATA_ELEMENT,
+    PICTURE_ELEMENT,
+    SOUND_ELEMENT,
+  } ElementType;
+
+public:
+    OP1AIndexTableElement(uint32_t track_index_, ElementType element_type_, bool is_cbe_, bool apply_temporal_reordering_);
 
     void CacheIndexEntry(int64_t position, int8_t temporal_offset, int8_t key_frame_offset, uint8_t flags,
-                         bool can_start_partition);
+                         bool can_start_partition, bool require_update);
     void UpdateIndexEntry(int64_t position, int8_t temporal_offset);
+    void UpdateIndexEntry(int64_t position, int8_t temporal_offset, int8_t key_frame_offset, uint8_t flags);
     bool TakeIndexEntry(int64_t position, OP1AIndexEntry *entry);
 
     bool CanStartPartition(int64_t position);
 
+    bool RequireUpdatesAtEnd(int64_t end_offset) const;
+    bool RequireUpdatesAtPos(int64_t position) const;
+    void IgnoreRequiredUpdates();
+
 public:
     uint32_t track_index;
-    bool is_picture;
+    ElementType element_type;
     bool is_cbe;
     bool apply_temporal_reordering;
 
     uint8_t slice_offset;
 
     uint32_t element_size;
+
+    std::set<int64_t> require_updates;
+    int64_t last_add_index_entry_pos;
 
 private:
     std::map<int64_t, OP1AIndexEntry> mIndexEntryCache;
@@ -103,15 +121,18 @@ private:
 class OP1AIndexTableSegment
 {
 public:
-    OP1AIndexTableSegment(uint32_t index_sid, uint32_t body_sid, mxfRational frame_rate, int64_t start_position,
-                           uint32_t index_entry_size, uint32_t slice_count);
+    OP1AIndexTableSegment(uint32_t index_sid, uint32_t body_sid, mxfRational edit_rate, int64_t start_position,
+                          uint32_t index_entry_size, uint32_t slice_count, bool force_write_slice_count,
+                          mxfOptBool single_index_location, mxfOptBool single_essence_location,
+                          mxfOptBool forward_index_direction);
     ~OP1AIndexTableSegment();
 
     bool RequireNewSegment(uint8_t flags);
     void AddIndexEntry(const OP1AIndexEntry *entry, int64_t stream_offset, std::vector<uint32_t> slice_cp_offsets);
     void UpdateIndexEntry(int64_t segment_position, int8_t temporal_offset);
+    void UpdateIndexEntry(int64_t segment_position, int8_t temporal_offset, int8_t key_frame_offset, uint8_t flags);
 
-    void AddCBEIndexEntry(uint32_t edit_unit_byte_count);
+    void AddCBEIndexEntries(uint32_t edit_unit_byte_count, uint32_t num_entries);
 
     uint32_t GetDuration() const;
 
@@ -128,12 +149,18 @@ private:
 class OP1AIndexTable
 {
 public:
-    OP1AIndexTable(uint32_t index_sid, uint32_t body_sid, mxfRational frame_rate);
+    OP1AIndexTable(uint32_t index_sid, uint32_t body_sid, mxfRational edit_rate, bool force_write_slice_count);
     ~OP1AIndexTable();
 
+    void SetEditRate(mxfRational edit_rate);
+    void SetExtensions(mxfOptBool single_index_location, mxfOptBool single_essence_location,
+                       mxfOptBool forward_index_direction);
+
+    void RegisterSystemItem();
     void RegisterPictureTrackElement(uint32_t track_index, bool is_cbe, bool apply_temporal_reordering);
     void RegisterAVCITrackElement(uint32_t track_index);
     void RegisterSoundTrackElement(uint32_t track_index);
+    void RegisterDataTrackElement(uint32_t track_index, bool is_cbe);
 
     void PrepareWrite();
 
@@ -151,22 +178,46 @@ public:
 
 public:
     void AddIndexEntry(uint32_t track_index, int64_t position, int8_t temporal_offset,
-                       int8_t key_frame_offset, uint8_t flags, bool can_start_partition);
+                       int8_t key_frame_offset, uint8_t flags,
+                       bool can_start_partition, bool require_update);
     void UpdateIndexEntry(uint32_t track_index, int64_t position, int8_t temporal_offset);
+    void UpdateIndexEntry(uint32_t track_index, int64_t position, int8_t temporal_offset, int8_t key_frame_offset,
+                          uint8_t flags);
 
     bool CanStartPartition();
 
     void UpdateIndex(uint32_t size, std::vector<uint32_t> element_sizes);
+    void UpdateIndex(uint32_t size, uint32_t num_samples);
 
 public:
     bool HaveSegments();
     void WriteSegments(mxfpp::File *mxf_file, mxfpp::Partition *partition, bool final_write);
 
+    bool RequireUpdatesAtEnd(int64_t end_offset) const;
+    bool RequireUpdatesAtPos(int64_t position) const;
+    void IgnoreRequiredUpdates();
+
+    bool RequireUpdatesAtEnd(uint32_t track_index, int64_t end_offset) const;
+    void IgnoreRequiredUpdates(uint32_t track_index);
+
+private:
+    void CreateDeltaEntries(std::vector<uint32_t> &element_sizes);
+    void CheckDeltaEntries(std::vector<uint32_t> &element_sizes);
+
+    void UpdateCBEIndex(uint32_t size, std::vector<uint32_t> &element_sizes);
+    void UpdateVBEIndex(std::vector<uint32_t> &element_sizes);
+
+    void WriteCBESegments(mxfpp::File *mxf_file, bool final_write);
+    void WriteVBESegments(mxfpp::File *mxf_file);
+
 private:
     uint32_t mIndexSID;
     uint32_t mBodySID;
-    mxfRational mFrameRate;
-
+    mxfRational mEditRate;
+    bool mForceWriteSliceCount;
+    mxfOptBool mSingleIndexLocation;
+    mxfOptBool mSingleEssenceLocation;
+    mxfOptBool mForwardIndexDirection;
     int64_t mInputDuration;
 
     std::vector<OP1AIndexTableElement*> mIndexElements;

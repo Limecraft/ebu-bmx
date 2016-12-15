@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AS11_INFO_H__
-#define __BMX_AS11_INFO_H__
+#ifndef BMX_AS11_INFO_H_
+#define BMX_AS11_INFO_H_
 
 
 #include <bmx/BMXTypes.h>
@@ -46,7 +46,7 @@ namespace bmx
 class AS11Info
 {
 public:
-    static void RegisterExtensions(mxfpp::DataModel *data_model);
+    static void RegisterExtensions(mxfpp::HeaderMetadata *header_metadata);
 
 public:
     AS11Info();
@@ -54,17 +54,18 @@ public:
 
     bool Read(mxfpp::HeaderMetadata *header_metadata);
 
-private:
-    void Reset();
-
-    void GetStaticFrameworks(std::vector<mxfpp::GenericTrack*> &tracks);
-    void GetSegmentation(std::vector<mxfpp::GenericTrack*> &tracks);
-
 public:
     AS11CoreFramework *core;
     UKDPPFramework *ukdpp;
     std::vector<mxfpp::StructuralComponent*> segmentation;
     Rational segmentation_rate;
+    std::vector<UL> spec_identifiers;
+
+private:
+    void Reset();
+
+    void GetStaticFrameworks(std::vector<mxfpp::GenericTrack*> &tracks);
+    void GetSegmentation(std::vector<mxfpp::GenericTrack*> &tracks);
 };
 
 

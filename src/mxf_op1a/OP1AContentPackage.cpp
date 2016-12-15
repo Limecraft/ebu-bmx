@@ -33,10 +33,14 @@
 #include "config.h"
 #endif
 
+#include <cstdio>
+#include <cstring>
+
 #include <algorithm>
 
 #include <bmx/mxf_op1a/OP1AContentPackage.h>
 #include <bmx/MXFUtils.h>
+#include <bmx/Utils.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -45,136 +49,154 @@ using namespace bmx;
 using namespace mxfpp;
 
 
-#define MAX_CONTENT_PACKAGES    250
+#define MAX_CONTENT_PACKAGES        250
+#define FW_ESS_ELEMENT_LLEN         4
 
-#define ESS_ELEMENT_LLEN        4
-#define LLEN                    4
+#define SYS_META_PICTURE_ITEM_FLAG  0x08
+#define SYS_META_SOUND_ITEM_FLAG    0x04
+#define SYS_META_DATA_ITEM_FLAG     0x02
+
+
+static const mxfKey MXF_EE_K(EmptyPackageMetadataSet) = MXF_SDTI_CP_PACKAGE_METADATA_KEY(0x00);
+
+static const uint32_t SYSTEM_ITEM_TRACK_INDEX = (uint32_t)(-1);
+static const uint32_t SYSTEM_ITEM_METADATA_PACK_SIZE = 7 + 16 + 17 + 17;
+static const uint32_t NA_SYSTEM_ITEM_SIZE = mxfKey_extlen + FW_ESS_ELEMENT_LLEN + SYSTEM_ITEM_METADATA_PACK_SIZE +
+                                            mxfKey_extlen + FW_ESS_ELEMENT_LLEN;
 
 
 
 static bool compare_element(const OP1AContentPackageElement *left, const OP1AContentPackageElement *right)
 {
-    return left->is_picture && !right->is_picture;
+  return left->element_type < right->element_type;
 }
 
 
 
-OP1AContentPackageElement::OP1AContentPackageElement(uint32_t track_index_, mxfKey element_key_,
-                                                     uint32_t kag_size_, uint8_t min_llen_,
-                                                     bool is_cbe_)
+OP1AContentPackageElement::OP1AContentPackageElement(uint32_t track_index_, ElementType element_type_,
+                                                     mxfKey element_key_, uint32_t kag_size_, uint8_t min_llen_)
 {
     track_index = track_index_;
     element_key = element_key_;
     kag_size = kag_size_;
     min_llen = min_llen_;
-    is_picture = true;
-    is_cbe = is_cbe_;
+    essence_llen = FW_ESS_ELEMENT_LLEN;
+    element_type = element_type_;
+    is_cbe = true;
+    is_frame_wrapped = true;
     sample_size = 0;
     fixed_element_size = 0;
     first_sample_size = 0;
     nonfirst_sample_size = 0;
 }
 
-OP1AContentPackageElement::OP1AContentPackageElement(uint32_t track_index_, mxfKey element_key_,
-                                                     uint32_t kag_size_, uint8_t min_llen_,
-                                                     uint32_t first_sample_size_, uint32_t nonfirst_sample_size_)
+void OP1AContentPackageElement::SetSampleSequence(const vector<uint32_t> &sample_sequence_, uint32_t sample_size_)
 {
-    track_index = track_index_;
-    element_key = element_key_;
-    kag_size = kag_size_;
-    min_llen = min_llen_;
-    is_picture = true;
-    is_cbe = true;
-    sample_size = 0;
-    fixed_element_size = 0;
-    first_sample_size = first_sample_size_;
-    nonfirst_sample_size = nonfirst_sample_size_;
-}
-
-OP1AContentPackageElement::OP1AContentPackageElement(uint32_t track_index_, mxfKey element_key_,
-                                                     uint32_t kag_size_, uint8_t min_llen_,
-                                                     vector<uint32_t> sample_sequence_, uint32_t sample_size_)
-{
-    track_index = track_index_;
-    element_key = element_key_;
-    kag_size = kag_size_;
-    min_llen = min_llen_;
-    is_picture = false;
-    is_cbe = true;
     sample_sequence = sample_sequence_;
     sample_size = sample_size_;
-    first_sample_size = 0;
-    nonfirst_sample_size = 0;
 
     uint32_t max_sample_sequence = 0;
-    uint32_t prev_max_sample_sequence = 0;
+    bool variable_sequence = false;
     size_t i;
     for (i = 0; i < sample_sequence.size(); i++) {
+        if (max_sample_sequence != 0 && sample_sequence[i] != max_sample_sequence)
+            variable_sequence = true;
         if (sample_sequence[i] > max_sample_sequence)
             max_sample_sequence = sample_sequence[i];
-        if (sample_sequence[i] > prev_max_sample_sequence &&
-            sample_sequence[i] < max_sample_sequence)
-        {
-            prev_max_sample_sequence = sample_sequence[i];
-        }
     }
 
-    fixed_element_size = GetKAGAlignedSize(mxfKey_extlen + ESS_ELEMENT_LLEN + max_sample_sequence * sample_size);
-    if (prev_max_sample_sequence > 0 && prev_max_sample_sequence < max_sample_sequence) {
-        uint32_t prev_max_element_size = GetKAGAlignedSize(mxfKey_extlen + ESS_ELEMENT_LLEN +
-                                                            max_sample_sequence * sample_size +
-                                                            mxfKey_extlen + min_llen);
-        if (prev_max_element_size > fixed_element_size) {
-            // max sample sequence element also requires filler
-            fixed_element_size = GetKAGAlignedSize(mxfKey_extlen + ESS_ELEMENT_LLEN +
-                                                      max_sample_sequence * sample_size +
-                                                      mxfKey_extlen + min_llen);
-        }
+    if (variable_sequence)
+        SetMaxEssenceLen(max_sample_sequence * sample_size);
+    else
+        SetConstantEssenceLen(max_sample_sequence * sample_size);
+}
+
+void OP1AContentPackageElement::SetConstantEssenceLen(uint32_t constant_essence_len)
+{
+    fixed_element_size = GetKAGAlignedSize(mxfKey_extlen + essence_llen + constant_essence_len);
+}
+
+void OP1AContentPackageElement::SetMaxEssenceLen(uint32_t max_essence_len)
+{
+    fixed_element_size = GetKAGAlignedSize(mxfKey_extlen + essence_llen + max_essence_len);
+
+    if (fixed_element_size == mxfKey_extlen + essence_llen + max_essence_len) {
+        // allow space to include a KLV fill
+        fixed_element_size = GetKAGAlignedSize(mxfKey_extlen + essence_llen + max_essence_len +
+                                               mxfKey_extlen + min_llen);
     }
 }
 
 uint32_t OP1AContentPackageElement::GetNumSamples(int64_t position) const
 {
-    if (sample_sequence.empty())
+    if (!is_frame_wrapped)
+        return 0;
+    else if (sample_sequence.empty())
         return 1;
     else
         return sample_sequence[(size_t)(position % sample_sequence.size())];
 }
 
-uint32_t OP1AContentPackageElement::GetKAGAlignedSize(uint32_t data_size)
+uint32_t OP1AContentPackageElement::GetKAGAlignedSize(uint32_t klv_size)
 {
-    // assuming the partition pack is aligned to the kag working from the first byte of the file
+    return (uint32_t)get_kag_aligned_size(klv_size, kag_size, min_llen);
+}
 
-    uint32_t fill_size = 0;
-    uint32_t data_in_kag_size = data_size % kag_size;
-    if (data_in_kag_size > 0) {
-        fill_size = kag_size - data_in_kag_size;
-        while (fill_size < (uint32_t)min_llen + mxfKey_extlen)
-            fill_size += kag_size;
-    }
+uint32_t OP1AContentPackageElement::GetKAGFillSize(int64_t klv_size)
+{
+    return get_kag_fill_size(klv_size, kag_size, min_llen);
+}
 
-    return data_size + fill_size;
+void OP1AContentPackageElement::WriteKL(File *mxf_file, int64_t essence_len)
+{
+    mxf_file->writeFixedKL(&element_key, essence_llen, essence_len);
+}
+
+void OP1AContentPackageElement::WriteFill(File *mxf_file, int64_t essence_len)
+{
+    uint32_t fill_size = GetKAGFillSize(mxfKey_extlen + essence_llen + essence_len);
+    if (fill_size > 0)
+        mxf_file->writeFill(fill_size);
 }
 
 
 
-OP1AContentPackageElementData::OP1AContentPackageElementData(OP1AContentPackageElement *element, int64_t position)
+OP1AContentPackageElementData::OP1AContentPackageElementData(File *mxf_file, OP1AIndexTable *index_table,
+                                                             OP1AContentPackageElement *element,
+                                                             int64_t position)
 {
+    mMXFFile = mxf_file;
+    mIndexTable = index_table;
     mElement = element;
     mNumSamplesWritten = 0;
     mNumSamples = element->GetNumSamples(position);
+    mTotalWriteSize = 0;
+    mElementStartPos = 0;
 }
 
 uint32_t OP1AContentPackageElementData::WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples)
 {
     BMX_ASSERT(size % num_samples == 0);
 
-    uint32_t write_num_samples = mNumSamples - mNumSamplesWritten;
-    if (write_num_samples > num_samples)
+    uint32_t write_num_samples;
+    uint32_t write_size;
+    if (mElement->is_frame_wrapped) {
+        write_num_samples = mNumSamples - mNumSamplesWritten;
+        if (write_num_samples > num_samples)
+            write_num_samples = num_samples;
+        write_size = (size / num_samples) * write_num_samples;
+    } else {
         write_num_samples = num_samples;
-    uint32_t write_size = (size / num_samples) * write_num_samples;
+        write_size = size;
+    }
 
-    mData.Append(data, write_size);
+    if (mElement->is_frame_wrapped || mTotalWriteSize == 0) {
+        mData.Append(data, write_size);
+    } else {
+        BMX_CHECK(mMXFFile->write(data, write_size) == write_size);
+        mTotalWriteSize += write_size;
+        mIndexTable->UpdateIndex(write_size, write_num_samples);
+    }
     mNumSamplesWritten += write_num_samples;
 
     return write_num_samples;
@@ -182,35 +204,88 @@ uint32_t OP1AContentPackageElementData::WriteSamples(const unsigned char *data, 
 
 void OP1AContentPackageElementData::WriteSample(const CDataBuffer *data_array, uint32_t array_size)
 {
-    uint32_t size = dba_get_total_size(data_array, array_size);
-    mData.Grow(size);
-    dba_copy_data(mData.GetBytesAvailable(), mData.GetSizeAvailable(), data_array, array_size);
-    mData.IncrementSize(size);
+    if (mElement->is_frame_wrapped || mTotalWriteSize == 0) {
+        uint32_t size = dba_get_total_size(data_array, array_size);
+        mData.Grow(size);
+        dba_copy_data(mData.GetBytesAvailable(), mData.GetSizeAvailable(), data_array, array_size);
+        mData.IncrementSize(size);
+    } else {
+        uint32_t write_size = 0;
+        uint32_t i;
+        for (i = 0; i < array_size; i++) {
+            BMX_CHECK(mMXFFile->write(data_array[i].data, data_array[i].size) == data_array[i].size);
+            write_size += data_array[i].size;
+            mTotalWriteSize += data_array[i].size;
+        }
+        mIndexTable->UpdateIndex(write_size, 1);
+    }
 
     mNumSamplesWritten++;
 }
 
-bool OP1AContentPackageElementData::IsComplete() const
+bool OP1AContentPackageElementData::IsReady() const
 {
-    return mNumSamplesWritten >= mNumSamples;
+    return ( mElement->is_frame_wrapped && mNumSamplesWritten >= mNumSamples) ||
+           (!mElement->is_frame_wrapped && mData.GetSize() > 0);
 }
 
 uint32_t OP1AContentPackageElementData::GetWriteSize() const
 {
-    if (mElement->fixed_element_size)
+    if (!mElement->is_frame_wrapped) {
+        return mData.GetSize();
+    } else if (mElement->fixed_element_size) {
+        uint32_t essence_write_size = mxfKey_extlen + mElement->essence_llen + mData.GetSize();
+        if (essence_write_size != mElement->fixed_element_size) {
+            if (essence_write_size > mElement->fixed_element_size) {
+                BMX_EXCEPTION(("Essence KLV element size %u exceeds fixed size %u",
+                               essence_write_size, mElement->fixed_element_size));
+            } else if (essence_write_size + mxfKey_extlen + mElement->min_llen > mElement->fixed_element_size) {
+                BMX_EXCEPTION(("Essence KLV element size %u does not allow insertion of KLV fill (min %u) for fixed size %u",
+                               essence_write_size, mxfKey_extlen + mElement->min_llen, mElement->fixed_element_size));
+            }
+        }
         return mElement->fixed_element_size;
-    else
-        return mElement->GetKAGAlignedSize(mxfKey_extlen + ESS_ELEMENT_LLEN + mData.GetSize());
+    } else {
+        return mElement->GetKAGAlignedSize(mxfKey_extlen + mElement->essence_llen + mData.GetSize());
+    }
 }
 
-void OP1AContentPackageElementData::Write(File *mxf_file)
+uint32_t OP1AContentPackageElementData::Write()
 {
-    mxf_file->writeFixedKL(&mElement->element_key, ESS_ELEMENT_LLEN, mData.GetSize());
-    BMX_CHECK(mxf_file->write(mData.GetBytes(), mData.GetSize()) == mData.GetSize());
-
     uint32_t write_size = GetWriteSize();
-    if (write_size != mxfKey_extlen + ESS_ELEMENT_LLEN + mData.GetSize())
-        mxf_file->writeFill(write_size - (mxfKey_extlen + ESS_ELEMENT_LLEN + mData.GetSize()));
+
+    if (mElement->is_frame_wrapped) {
+        mElement->WriteKL(mMXFFile, mData.GetSize());
+        BMX_CHECK(mMXFFile->write(mData.GetBytes(), mData.GetSize()) == mData.GetSize());
+        if (write_size > mxfKey_extlen + mElement->essence_llen + mData.GetSize())
+            mMXFFile->writeFill(write_size - (mxfKey_extlen + mElement->essence_llen + mData.GetSize()));
+        else
+            BMX_ASSERT(write_size == mxfKey_extlen + mElement->essence_llen + mData.GetSize());
+    } else {
+        BMX_ASSERT(mTotalWriteSize == 0);
+        mElementStartPos = mMXFFile->tell();
+        mElement->WriteKL(mMXFFile, 0);
+        BMX_CHECK(mMXFFile->write(mData.GetBytes(), mData.GetSize()) == mData.GetSize());
+        mData.SetSize(0);
+    }
+
+    mTotalWriteSize += write_size;
+
+    return write_size;
+}
+
+void OP1AContentPackageElementData::CompleteWrite()
+{
+    if (!mElement->is_frame_wrapped && mTotalWriteSize > 0) {
+        // write KAG alignment fill
+        mElement->WriteFill(mMXFFile, mTotalWriteSize);
+
+        // update clip-wrapped element length
+        int64_t pos = mMXFFile->tell();
+        mMXFFile->seek(mElementStartPos, SEEK_SET);
+        mElement->WriteKL(mMXFFile, mTotalWriteSize);
+        mMXFFile->seek(pos, SEEK_SET);
+    }
 }
 
 void OP1AContentPackageElementData::Reset(int64_t new_position)
@@ -218,19 +293,57 @@ void OP1AContentPackageElementData::Reset(int64_t new_position)
     mData.SetSize(0);
     mNumSamplesWritten = 0;
     mNumSamples = mElement->GetNumSamples(new_position);
+    mTotalWriteSize = 0;
+    mElementStartPos = 0;
 }
 
-
-
-OP1AContentPackage::OP1AContentPackage(vector<OP1AContentPackageElement*> elements, int64_t position)
+OP1AContentPackage::OP1AContentPackage(File *mxf_file, OP1AIndexTable *index_table, uint32_t kag_size, uint8_t min_llen,
+                                       bool have_system_item, bool have_user_timecode, Rational frame_rate,
+                                       uint8_t sys_meta_item_flags, vector<OP1AContentPackageElement*> elements,
+                                       int64_t position, Timecode start_timecode)
 {
+    mMXFFile = mxf_file;
+    mIndexTable = index_table;
+    mFrameWrapped = true;
+    mHaveSystemItem = have_system_item;
+    if (have_system_item) {
+      mSystemItemSize = (uint32_t)get_kag_aligned_size(NA_SYSTEM_ITEM_SIZE, kag_size, min_llen);
+
+      // system metadata bitmap = 0x5c
+      // b7 = 0 (FEC not used)
+      // b6 = 1 (SMPTE Universal label)
+      // b5 = 0 (creation date/time stamp)
+      // b4 = 1 (user date/time stamp)
+      // b3 = 0/1 (picture item)
+      // b2 = 0/1 (sound item)
+      // b1 = 0/1 (data item)
+      // b0 = 0 (control element)
+      mSystemMetadataBitmap = 0x50 | sys_meta_item_flags;
+
+      mHaveInputUserTimecode = have_user_timecode;
+      mFrameRate = frame_rate;
+      mStartTimecode = start_timecode;
+      mContentPackageRate = get_system_item_cp_rate(frame_rate);
+      mUserTimecodeSet = false;
+    } else {
+      mSystemItemSize = 0;
+      mSystemMetadataBitmap = 0;
+      mHaveInputUserTimecode = false;
+      mFrameRate = g_Null_Rational;
+      mContentPackageRate = 0;
+      mUserTimecodeSet = false;
+    }
+    mPosition = position;
+    mHaveUpdatedIndexTable = false;
+
+    if (!elements.empty())
+        mFrameWrapped = elements[0]->is_frame_wrapped;
+
     size_t i;
     for (i = 0; i < elements.size(); i++) {
-        mElementData.push_back(new OP1AContentPackageElementData(elements[i], position));
+        mElementData.push_back(new OP1AContentPackageElementData(mxf_file, index_table, elements[i], position));
         mElementTrackIndexMap[elements[i]->track_index] = mElementData.back();
     }
-
-    mHaveUpdatedIndexTable = false;
 }
 
 OP1AContentPackage::~OP1AContentPackage()
@@ -245,14 +358,24 @@ void OP1AContentPackage::Reset(int64_t new_position)
     size_t i;
     for (i = 0; i < mElementData.size(); i++)
         mElementData[i]->Reset(new_position);
+    mPosition = new_position;
     mHaveUpdatedIndexTable = false;
+    mUserTimecodeSet = false;
 }
 
-bool OP1AContentPackage::IsComplete(uint32_t track_index)
+bool OP1AContentPackage::IsReady(uint32_t track_index)
 {
-    BMX_ASSERT(mElementTrackIndexMap.find(track_index) != mElementTrackIndexMap.end());
+    if (mHaveSystemItem && track_index == SYSTEM_ITEM_TRACK_INDEX)
+        return mUserTimecodeSet || !mHaveInputUserTimecode;
 
-    return mElementTrackIndexMap[track_index]->IsComplete();
+    BMX_ASSERT(mElementTrackIndexMap.find(track_index) != mElementTrackIndexMap.end());
+    return mElementTrackIndexMap[track_index]->IsReady();
+}
+
+void OP1AContentPackage::WriteUserTimecode(Timecode user_timecode)
+{
+    mUserTimecode    = user_timecode;
+    mUserTimecodeSet = true;
 }
 
 uint32_t OP1AContentPackage::WriteSamples(uint32_t track_index, const unsigned char *data, uint32_t size,
@@ -270,53 +393,127 @@ void OP1AContentPackage::WriteSample(uint32_t track_index, const CDataBuffer *da
     mElementTrackIndexMap[track_index]->WriteSample(data_array, array_size);
 }
 
-bool OP1AContentPackage::IsComplete()
+bool OP1AContentPackage::IsReady()
 {
+    if (mHaveSystemItem && mHaveInputUserTimecode && !mUserTimecodeSet)
+        return false;
+
     size_t i;
     for (i = 0; i < mElementData.size(); i++) {
-        if (!mElementData[i]->IsComplete())
+        if (!mElementData[i]->IsReady())
             return false;
     }
 
     return true;
 }
 
-void OP1AContentPackage::UpdateIndexTable(OP1AIndexTable *index_table)
+void OP1AContentPackage::UpdateIndexTable()
 {
     if (mHaveUpdatedIndexTable)
         return;
 
-    uint32_t size = 0;
-    vector<uint32_t> element_sizes;
+    if (mFrameWrapped) {
+        uint32_t size = 0;
+        vector<uint32_t> element_sizes;
 
-    size_t i;
-    for (i = 0; i < mElementData.size(); i++) {
-        element_sizes.push_back(mElementData[i]->GetWriteSize());
-        size += element_sizes.back();
+        if (mHaveSystemItem) {
+            element_sizes.push_back(mSystemItemSize);
+            size += mSystemItemSize;
+        }
+
+        size_t i;
+        for (i = 0; i < mElementData.size(); i++) {
+            element_sizes.push_back(mElementData[i]->GetWriteSize());
+            size += element_sizes.back();
+        }
+
+        mIndexTable->UpdateIndex(size, element_sizes);
+    } else {
+        mIndexTable->UpdateIndex(mElementData[0]->GetWriteSize(),
+                                 mElementData[0]->GetNumSamplesWritten());
     }
 
-    index_table->UpdateIndex(size, element_sizes);
     mHaveUpdatedIndexTable = true;
 }
 
-void OP1AContentPackage::Write(File *mxf_file)
+uint32_t OP1AContentPackage::Write()
 {
     BMX_ASSERT(mHaveUpdatedIndexTable);
 
+    if (mHaveSystemItem)
+        WriteSystemItem();
+
+    uint32_t size = 0;
     size_t i;
     for (i = 0; i < mElementData.size(); i++)
-        mElementData[i]->Write(mxf_file);
+        size += mElementData[i]->Write();
+
+    return size;
+}
+
+void OP1AContentPackage::WriteSystemItem()
+{
+    mMXFFile->writeFixedKL(&MXF_EE_K(SDTI_CP_System_Pack), FW_ESS_ELEMENT_LLEN, SYSTEM_ITEM_METADATA_PACK_SIZE);
+
+    // core fields
+    mMXFFile->writeUInt8(mSystemMetadataBitmap);                        // system metadata bitmap
+    mMXFFile->writeUInt8(mContentPackageRate);                          // content package rate
+    mMXFFile->writeUInt8(0x00);                                         // content package type (default)
+    mMXFFile->writeUInt16(0x0000);                                      // channel handle (default)
+    mMXFFile->writeUInt16((uint16_t)(mPosition & 0xffff));              // continuity count
+
+    // SMPTE Universal Label
+    mMXFFile->writeUL(&MXF_EC_L(MultipleWrappings));
+
+    // (null) Package creation date / time stamp
+    unsigned char ts_bytes[17];
+    memset(ts_bytes, 0, sizeof(ts_bytes));
+    BMX_CHECK(mMXFFile->write(ts_bytes, sizeof(ts_bytes)) == sizeof(ts_bytes));
+
+    // User date / time stamp
+    Timecode user_timecode;
+    ts_bytes[0] = 0x81; // SMPTE 12-M timecode
+    if (mHaveInputUserTimecode) {
+        user_timecode = mUserTimecode;
+    } else if (!mStartTimecode.IsInvalid()) {
+        user_timecode = mStartTimecode;
+        user_timecode.AddOffset(mPosition);
+    } else {
+        user_timecode.Init(get_rounded_tc_base(mFrameRate), false, mPosition);
+    }
+    encode_smpte_timecode(user_timecode, false, &ts_bytes[1], sizeof(ts_bytes) - 1);
+    BMX_CHECK(mMXFFile->write(ts_bytes, sizeof(ts_bytes)) == sizeof(ts_bytes));
+
+    // empty Package Metadata Set
+    mMXFFile->writeFixedKL(&MXF_EE_K(EmptyPackageMetadataSet), FW_ESS_ELEMENT_LLEN, 0);
+
+    if (mSystemItemSize > NA_SYSTEM_ITEM_SIZE)
+        mMXFFile->writeFill(mSystemItemSize - NA_SYSTEM_ITEM_SIZE);
+}
+
+void OP1AContentPackage::CompleteWrite()
+{
+    if (!mFrameWrapped)
+        mElementData[0]->CompleteWrite();
 }
 
 
 
-OP1AContentPackageManager::OP1AContentPackageManager(uint32_t kag_size, uint8_t min_llen)
+OP1AContentPackageManager::OP1AContentPackageManager(File *mxf_file, OP1AIndexTable *index_table, Rational frame_rate,
+                                                     uint32_t kag_size, uint8_t min_llen)
 {
     // check assumption that filler will have llen == min_llen
     BMX_ASSERT(min_llen >= mxf_get_llen(0, kag_size + mxfKey_extlen + min_llen));
 
+    mMXFFile = mxf_file;
+    mIndexTable = index_table;
+    mFrameRate = frame_rate;
     mKAGSize = kag_size;
     mMinLLen = min_llen;
+    mFrameWrapped = true;
+    mHaveSystemItem = false;
+    mHaveInputUserTimecode = false;
+    mSysMetaItemFlags = 0;
     mPosition = 0;
 }
 
@@ -332,41 +529,137 @@ OP1AContentPackageManager::~OP1AContentPackageManager()
         delete mFreeContentPackages[i];
 }
 
+void OP1AContentPackageManager::SetHaveInputUserTimecode(bool enable)
+{
+    mHaveInputUserTimecode = enable;
+}
+
+void OP1AContentPackageManager::SetStartTimecode(Timecode start_timecode)
+{
+    if (!start_timecode.IsInvalid() && start_timecode.GetRoundedTCBase() == get_rounded_tc_base(mFrameRate))
+        mStartTimecode = start_timecode;
+    else
+        mStartTimecode.SetInvalid();
+}
+
+void OP1AContentPackageManager::SetClipWrapped(bool enable)
+{
+    BMX_ASSERT(!enable || !mHaveSystemItem);
+    mFrameWrapped = !enable;
+}
+
+void OP1AContentPackageManager::RegisterSystemItem()
+{
+    BMX_ASSERT(mFrameWrapped);
+    mHaveSystemItem = true;
+}
+
 void OP1AContentPackageManager::RegisterPictureTrackElement(uint32_t track_index, mxfKey element_key, bool is_cbe)
 {
-    mElements.push_back(new OP1AContentPackageElement(track_index, element_key,
-                                                      mKAGSize, mMinLLen,
-                                                      is_cbe));
-    mElementTrackIndexMap[track_index] = mElements.back();
+    RegisterPictureTrackElement(track_index, element_key, is_cbe, mMinLLen);
+}
+
+void OP1AContentPackageManager::RegisterPictureTrackElement(uint32_t track_index, mxfKey element_key, bool is_cbe,
+                                                            uint8_t element_llen)
+{
+    BMX_ASSERT(mFrameWrapped);
+
+    OP1AContentPackageElement *element = new OP1AContentPackageElement(track_index,
+                                                                       OP1AContentPackageElement::PICTURE_ELEMENT,
+                                                                       element_key, mKAGSize, mMinLLen);
+    element->is_cbe = is_cbe;
+    element->essence_llen = element_llen;
+
+    mElements.push_back(element);
+    mElementTrackIndexMap[track_index] = element;
+
+    mSysMetaItemFlags |= SYS_META_PICTURE_ITEM_FLAG;
 }
 
 void OP1AContentPackageManager::RegisterAVCITrackElement(uint32_t track_index, mxfKey element_key,
                                                          uint32_t first_sample_size, uint32_t nonfirst_sample_size)
 {
-    mElements.push_back(new OP1AContentPackageElement(track_index, element_key,
-                                                      mKAGSize, mMinLLen,
-                                                      first_sample_size, nonfirst_sample_size));
-    mElementTrackIndexMap[track_index] = mElements.back();
+    BMX_ASSERT(mFrameWrapped);
+
+    OP1AContentPackageElement *element = new OP1AContentPackageElement(track_index,
+                                                                       OP1AContentPackageElement::PICTURE_ELEMENT,
+                                                                       element_key, mKAGSize, mMinLLen);
+    element->first_sample_size = first_sample_size;
+    element->nonfirst_sample_size = nonfirst_sample_size;
+
+    mElements.push_back(element);
+    mElementTrackIndexMap[track_index] = element;
+
+    mSysMetaItemFlags |= SYS_META_PICTURE_ITEM_FLAG;
 }
 
 void OP1AContentPackageManager::RegisterSoundTrackElement(uint32_t track_index, mxfKey element_key,
                                                           vector<uint32_t> sample_sequence, uint32_t sample_size)
 {
-    mElements.push_back(new OP1AContentPackageElement(track_index, element_key, mKAGSize, mMinLLen,
-                                                      sample_sequence, sample_size));
-    mElementTrackIndexMap[track_index] = mElements.back();
+    BMX_ASSERT(mFrameWrapped);
+
+    OP1AContentPackageElement *element = new OP1AContentPackageElement(track_index,
+                                                                       OP1AContentPackageElement::SOUND_ELEMENT,
+                                                                       element_key, mKAGSize, mMinLLen);
+    element->SetSampleSequence(sample_sequence, sample_size);
+
+    mElements.push_back(element);
+    mElementTrackIndexMap[track_index] = element;
+
+    mSysMetaItemFlags |= SYS_META_SOUND_ITEM_FLAG;
+}
+
+void OP1AContentPackageManager::RegisterSoundTrackElement(uint32_t track_index, mxfKey element_key,
+                                                          uint8_t element_llen)
+{
+    BMX_ASSERT(!mFrameWrapped);
+
+    OP1AContentPackageElement *element = new OP1AContentPackageElement(track_index,
+                                                                       OP1AContentPackageElement::SOUND_ELEMENT,
+                                                                       element_key, mKAGSize, mMinLLen);
+    element->is_frame_wrapped = false;
+    element->essence_llen = element_llen;
+
+    mElements.push_back(element);
+    mElementTrackIndexMap[track_index] = element;
+
+    mSysMetaItemFlags |= SYS_META_SOUND_ITEM_FLAG;
+}
+
+void OP1AContentPackageManager::RegisterDataTrackElement(uint32_t track_index, mxfKey element_key,
+                                                         uint32_t constant_essence_len, uint32_t max_essence_len)
+{
+    BMX_ASSERT(mFrameWrapped);
+
+    OP1AContentPackageElement *element = new OP1AContentPackageElement(track_index,
+                                                                       OP1AContentPackageElement::DATA_ELEMENT,
+                                                                       element_key, mKAGSize, mMinLLen);
+    if (constant_essence_len)
+        element->SetConstantEssenceLen(constant_essence_len);
+    else if (max_essence_len)
+        element->SetMaxEssenceLen(max_essence_len);
+    else
+        element->is_cbe = false;
+
+    mElements.push_back(element);
+    mElementTrackIndexMap[track_index] = element;
+
+    mSysMetaItemFlags |= SYS_META_DATA_ITEM_FLAG;
 }
 
 void OP1AContentPackageManager::PrepareWrite()
 {
-    // order elements: picture elements followed by sound elements
+    BMX_CHECK_M(mElements.size() <= 1 || mFrameWrapped,
+                ("Multiple tracks using clip wrapping is not supported"));
+
+    // order elements: data - picture - sound
     stable_sort(mElements.begin(), mElements.end(), compare_element);
 
     // check sound elements have identical sequences
     bool valid_sequences = true;
     size_t i;
     for (i = 0; i < mElements.size(); i++) {
-        if (!mElements[i]->is_picture)
+        if (mElements[i]->element_type == OP1AContentPackageElement::SOUND_ELEMENT)
             break;
     }
     if (i + 1 < mElements.size()) {
@@ -389,15 +682,19 @@ void OP1AContentPackageManager::PrepareWrite()
     BMX_CHECK_M(valid_sequences, ("Sound tracks have different number of samples per frame"));
 }
 
+void OP1AContentPackageManager::WriteUserTimecode(Timecode user_timecode)
+{
+    if (mHaveSystemItem && mHaveInputUserTimecode)
+        mContentPackages[GetCurrentContentPackage(SYSTEM_ITEM_TRACK_INDEX)]->WriteUserTimecode(user_timecode);
+}
+
 void OP1AContentPackageManager::WriteSamples(uint32_t track_index, const unsigned char *data, uint32_t size,
                                              uint32_t num_samples)
 {
     BMX_ASSERT(data && size && num_samples);
     BMX_ASSERT(mElementTrackIndexMap.find(track_index) != mElementTrackIndexMap.end());
 
-    size_t cp_index = 0;
-    while (cp_index < mContentPackages.size() && mContentPackages[cp_index]->IsComplete(track_index))
-        cp_index++;
+    size_t cp_index = GetCurrentContentPackage(track_index);
 
     uint32_t sample_size = mElementTrackIndexMap[track_index]->sample_size;
     if (sample_size == 0)
@@ -408,23 +705,16 @@ void OP1AContentPackageManager::WriteSamples(uint32_t track_index, const unsigne
     uint32_t rem_size = sample_size * num_samples;
     uint32_t rem_num_samples = num_samples;
     while (rem_num_samples > 0) {
-        if (cp_index >= mContentPackages.size()) {
-            if (mFreeContentPackages.empty()) {
-                BMX_CHECK(mContentPackages.size() < MAX_CONTENT_PACKAGES);
-                mContentPackages.push_back(new OP1AContentPackage(mElements, mPosition + cp_index));
-            } else {
-                mContentPackages.push_back(mFreeContentPackages.back());
-                mFreeContentPackages.pop_back();
-                mContentPackages.back()->Reset(mPosition + cp_index);
-            }
-        }
+        if (cp_index >= mContentPackages.size())
+            cp_index = CreateContentPackage();
 
         uint32_t num_written = mContentPackages[cp_index]->WriteSamples(track_index, data_ptr, rem_size, rem_num_samples);
         rem_num_samples -= num_written;
         rem_size -= num_written * sample_size;
         data_ptr += num_written * sample_size;
 
-        cp_index++;
+        if (mFrameWrapped)
+            cp_index++;
     }
 }
 
@@ -432,60 +722,90 @@ void OP1AContentPackageManager::WriteSample(uint32_t track_index, const CDataBuf
 {
     BMX_ASSERT(data_array && array_size);
 
-    size_t cp_index = 0;
-    while (cp_index < mContentPackages.size() && mContentPackages[cp_index]->IsComplete(track_index))
-        cp_index++;
+    size_t cp_index = GetCurrentContentPackage(track_index);
 
-    if (cp_index >= mContentPackages.size()) {
-        if (mFreeContentPackages.empty()) {
-            BMX_CHECK(mContentPackages.size() < MAX_CONTENT_PACKAGES);
-            mContentPackages.push_back(new OP1AContentPackage(mElements, mPosition + cp_index));
-        } else {
-            mContentPackages.push_back(mFreeContentPackages.back());
-            mFreeContentPackages.pop_back();
-            mContentPackages.back()->Reset(mPosition + cp_index);
-        }
-    }
+    if (cp_index >= mContentPackages.size())
+        cp_index = CreateContentPackage();
 
     mContentPackages[cp_index]->WriteSample(track_index, data_array, array_size);
 }
 
 bool OP1AContentPackageManager::HaveContentPackage() const
 {
-    return !mContentPackages.empty() && mContentPackages.front()->IsComplete();
+    return !mContentPackages.empty() && mContentPackages.front()->IsReady();
 }
 
 bool OP1AContentPackageManager::HaveContentPackages(size_t num) const
 {
     size_t i;
     for (i = 0; i < mContentPackages.size() && i < num; i++) {
-        if (!mContentPackages[i]->IsComplete())
+        if (!mContentPackages[i]->IsReady())
             break;
     }
 
     return i >= num;
 }
 
-void OP1AContentPackageManager::UpdateIndexTable(OP1AIndexTable *index_table, size_t num_content_packages)
+void OP1AContentPackageManager::UpdateIndexTable(size_t num_content_packages)
 {
     size_t i;
     for (i = 0; i < mContentPackages.size() && i < num_content_packages; i++) {
-        BMX_ASSERT(mContentPackages[i]->IsComplete());
-        mContentPackages[i]->UpdateIndexTable(index_table);
+        BMX_ASSERT(mContentPackages[i]->IsReady());
+        mContentPackages[i]->UpdateIndexTable();
     }
     BMX_ASSERT(i == num_content_packages);
 }
 
-void OP1AContentPackageManager::WriteNextContentPackage(File *mxf_file, OP1AIndexTable *index_table)
+void OP1AContentPackageManager::WriteNextContentPackage()
 {
     BMX_ASSERT(HaveContentPackage());
 
-    mContentPackages.front()->UpdateIndexTable(index_table);
-    mContentPackages.front()->Write(mxf_file);
+    mContentPackages.front()->UpdateIndexTable();
+    mContentPackages.front()->Write();
 
-    mFreeContentPackages.push_back(mContentPackages.front());
-    mContentPackages.pop_front();
+    if (mFrameWrapped) {
+        mFreeContentPackages.push_back(mContentPackages.front());
+        mContentPackages.pop_front();
+    }
 
     mPosition++;
+}
+
+void OP1AContentPackageManager::CompleteWrite()
+{
+    if (!mFrameWrapped && !mContentPackages.empty())
+        mContentPackages.front()->CompleteWrite();
+}
+
+size_t OP1AContentPackageManager::GetCurrentContentPackage(uint32_t track_index)
+{
+    size_t cp_index = 0;
+    if (mFrameWrapped) {
+        while (cp_index < mContentPackages.size() &&
+               mContentPackages[cp_index]->IsReady(track_index))
+        {
+            cp_index++;
+        }
+    }
+
+    return cp_index;
+}
+
+size_t OP1AContentPackageManager::CreateContentPackage()
+{
+    size_t cp_index = mContentPackages.size();
+
+    if (mFreeContentPackages.empty()) {
+        BMX_CHECK(mContentPackages.size() < MAX_CONTENT_PACKAGES);
+        mContentPackages.push_back(new OP1AContentPackage(mMXFFile, mIndexTable, mKAGSize, mMinLLen, mHaveSystemItem,
+                                                          mHaveInputUserTimecode, mFrameRate, mSysMetaItemFlags,
+                                                          mElements, mPosition + cp_index, mStartTimecode));
+    } else {
+        mContentPackages.push_back(mFreeContentPackages.back());
+        mFreeContentPackages.pop_back();
+        mContentPackages.back()->Reset(mPosition + cp_index);
+    }
+
+    return cp_index;
 }
 

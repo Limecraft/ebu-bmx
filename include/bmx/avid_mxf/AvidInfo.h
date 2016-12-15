@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AVID_INFO_H__
-#define __BMX_AVID_INFO_H__
+#ifndef BMX_AVID_INFO_H_
+#define BMX_AVID_INFO_H_
 
 
 #include <bmx/avid_mxf/AvidTypes.h>
@@ -44,7 +44,7 @@ namespace bmx
 class AvidInfo
 {
 public:
-    static void RegisterExtensions(mxfpp::DataModel *data_model);
+    static void RegisterExtensions(mxfpp::HeaderMetadata *header_metadata);
 
 public:
     AvidInfo();
@@ -77,6 +77,7 @@ public:
     std::string phys_package_name;
     std::string phys_package_locator;
     UMID phys_package_uid;
+    int32_t resolution_id;
 };
 
 

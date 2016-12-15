@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AVID_MPEG2LG_TRACK_H__
-#define __BMX_AVID_MPEG2LG_TRACK_H__
+#ifndef BMX_AVID_MPEG2LG_TRACK_H_
+#define BMX_AVID_MPEG2LG_TRACK_H_
 
 #include <bmx/avid_mxf/AvidPictureTrack.h>
 #include <bmx/writer_helper/MPEG2LGWriterHelper.h>
@@ -47,6 +47,8 @@ class AvidMPEG2LGTrack : public AvidPictureTrack
 public:
     AvidMPEG2LGTrack(AvidClip *clip, uint32_t track_index, EssenceType essence_type, mxfpp::File *file);
     virtual ~AvidMPEG2LGTrack();
+
+    virtual bool SupportOutputStartOffset() { return true; }
 
 public:
     virtual void WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples);

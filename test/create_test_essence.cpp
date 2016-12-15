@@ -53,71 +53,136 @@
 
 typedef enum
 {
-    TYPE_UNKNOWN = 0,
-    TYPE_PCM,
-    TYPE_IEC_DV25,
-    TYPE_DVBASED_DV25,
-    TYPE_DV50,
-    TYPE_DV100_1080I,
-    TYPE_DV100_720P,
-    TYPE_AVCI100_1080I,
-    TYPE_AVCI100_1080P,
-    TYPE_AVCI50_1080I,
-    TYPE_AVCI50_1080P,
-    TYPE_D10_50,
-    TYPE_D10_40,
-    TYPE_D10_30,
-    TYPE_MPEG2LG_422P_HL_1080I,
-    TYPE_MPEG2LG_MP_H14_1080I,
-    TYPE_MPEG2LG_MP_HL_1080I,
-    TYPE_UNC_SD,
-    TYPE_UNC_HD_1080I,
-    TYPE_UNC_HD_1080P,
-    TYPE_UNC_HD_720P,
-    TYPE_MPEG2LG_422P_HL_1080P,
-    TYPE_MPEG2LG_MP_H14_1080P,
-    TYPE_MPEG2LG_MP_HL_1080P,
-    TYPE_MPEG2LG_MP_HL_1080I_1440,
-    TYPE_MPEG2LG_MP_HL_1080P_1440,
-    TYPE_MPEG2LG_422P_HL_720P,
-    TYPE_MPEG2LG_MP_HL_720P,
-    TYPE_DV100_1080P,
-    TYPE_AVCI100_720P,
-    TYPE_AVCI50_720P,
-    TYPE_VC3_1080P_1235,
-    TYPE_VC3_1080P_1237,
-    TYPE_VC3_1080P_1238,
-    TYPE_VC3_1080I_1241,
-    TYPE_VC3_1080I_1242,
-    TYPE_VC3_1080I_1243,
-    TYPE_VC3_720P_1250,
-    TYPE_VC3_720P_1251,
-    TYPE_VC3_720P_1252,
-    TYPE_VC3_1080P_1253,
-    TYPE_AVID_ALPHA_HD_1080I,
-    TYPE_END,
+    TYPE_UNKNOWN                        = 0,
+    TYPE_16BIT_PCM                      = 1,
+    TYPE_IEC_DV25                       = 2,
+    TYPE_DVBASED_DV25                   = 3,
+    TYPE_DV50                           = 4,
+    TYPE_DV100_1080I                    = 5,
+    TYPE_DV100_720P                     = 6,
+    TYPE_AVCI100_1080I                  = 7,
+    TYPE_AVCI100_1080P                  = 8,
+    TYPE_AVCI50_1080I                   = 9,
+    TYPE_AVCI50_1080P                   = 10,
+    TYPE_D10_50                         = 11,
+    TYPE_D10_40                         = 12,
+    TYPE_D10_30                         = 13,
+    TYPE_MPEG2LG_422P_HL_1080I          = 14,
+    TYPE_MPEG2LG_MP_H14_1080I           = 15,
+    TYPE_MPEG2LG_MP_HL_1080I            = 16,
+    TYPE_UNC_SD                         = 17,
+    TYPE_UNC_HD_1080I                   = 18,
+    TYPE_UNC_HD_1080P                   = 19,
+    TYPE_UNC_HD_720P                    = 20,
+    TYPE_MPEG2LG_422P_HL_1080P          = 21,
+    TYPE_MPEG2LG_MP_H14_1080P           = 22,
+    TYPE_MPEG2LG_MP_HL_1080P            = 23,
+    TYPE_MPEG2LG_MP_HL_1080I_1440       = 24,
+    TYPE_MPEG2LG_MP_HL_1080P_1440       = 25,
+    TYPE_MPEG2LG_422P_HL_720P           = 26,
+    TYPE_MPEG2LG_MP_HL_720P             = 27,
+    TYPE_DV100_1080P                    = 28,
+    TYPE_AVCI100_720P                   = 29,
+    TYPE_AVCI50_720P                    = 30,
+    TYPE_VC3_1080P_1235                 = 31,
+    TYPE_VC3_1080P_1237                 = 32,
+    TYPE_VC3_1080P_1238                 = 33,
+    TYPE_VC3_1080I_1241                 = 34,
+    TYPE_VC3_1080I_1242                 = 35,
+    TYPE_VC3_1080I_1243                 = 36,
+    TYPE_VC3_720P_1250                  = 37,
+    TYPE_VC3_720P_1251                  = 38,
+    TYPE_VC3_720P_1252                  = 39,
+    TYPE_VC3_1080P_1253                 = 40,
+    TYPE_AVID_ALPHA_HD_1080I            = 41,
+    TYPE_24BIT_PCM                      = 42,
+    TYPE_ANC_DATA                       = 43,
+    TYPE_VBI_DATA                       = 44,
+    TYPE_UNC_UHD_3840                   = 45,
+    TYPE_AVCI200_1080I                  = 46,
+    TYPE_AVCI200_1080P                  = 47,
+    TYPE_AVCI200_720P                   = 48,
+    TYPE_VC3_1080I_1244                 = 49,
+    TYPE_VC3_720P_1258                  = 50,
+    TYPE_VC3_1080P_1259                 = 51,
+    TYPE_VC3_1080I_1260                 = 52,
+    TYPE_AS10_MPEG2LG_422P_HL_1080I     = 53,
+    TYPE_VC2                            = 54,
+    TYPE_END                            = 55,
 } EssenceType;
 
+typedef struct
+{
+    bool seq_header;
+    uint8_t profile_level;
+    bool is_progressive;
+    uint8_t chroma_format;
+    uint32_t bit_rate;
+    bool low_delay;
+    bool closed_gop;
+    uint32_t h_size;
+    uint32_t v_size;
+    uint32_t temporal_ref;
+    uint8_t frame_type;
+} MPEGInfo;
 
 
-// access unit delimiter NAL + start of sequence parameter set NAL
-static const unsigned char AVCI_FIRST_FRAME_PREFIX_DATA[] =
-    {0x00, 0x00, 0x00, 0x01, 0x09, 0x10, 0x00, 0x00, 0x00, 0x01, 0x67};
+static const unsigned char AVCI_AUD_DATA[] =
+{
+    0x00, 0x00, 0x00, 0x01, 0x09, 0x10
+};
 
-// access unit delimiter NAL + start of SEI messages NAL
-static const unsigned char AVCI_NON_FIRST_FRAME_PREFIX_DATA[] =
-    {0x00, 0x00, 0x00, 0x01, 0x09, 0x10, 0x00, 0x00, 0x00, 0x01, 0x06};
+static const unsigned char AVCI_SPS_DATA[] =
+{
+    0x00, 0x00, 0x00, 0x01, 0x67, 0x7a, 0x10, 0x29,
+    0xb6, 0xd4, 0x20, 0x22, 0x33, 0x19, 0xc6, 0x63,
+    0x23, 0x21, 0x01, 0x11, 0x98, 0xce, 0x33, 0x19,
+    0x18, 0x21, 0x03, 0x3a, 0x46, 0x65, 0x6a, 0x65,
+    0x24, 0xad, 0xe9, 0x12, 0x32, 0x14, 0x1a, 0x26,
+    0x34, 0xad, 0xa4, 0x41, 0x82, 0x23, 0x01, 0x50,
+    0x2b, 0x1a, 0x24, 0x69, 0x48, 0x30, 0x40, 0x2e,
+    0x11, 0x12, 0x08, 0xc6, 0x8c, 0x04, 0x41, 0x28,
+    0x4c, 0x34, 0xf0, 0x1e, 0x01, 0x13, 0xf2, 0xe0,
+    0x3c, 0x60, 0x20, 0x20, 0x28, 0x00, 0x00, 0x03,
+    0x00, 0x08, 0x00, 0x00, 0x03, 0x01, 0x94, 0x20
+};
+
+static const unsigned char AVCI_PPS_DATA[] =
+{
+    0x00, 0x00, 0x00, 0x01, 0x68, 0xce, 0x33, 0x48,
+    0xd0
+};
+
+static const unsigned char AVCI_SLICE_DATA[] =
+{
+    0x00, 0x00, 0x00, 0x01, 0x65, 0x88, 0x80, 0x80,
+    0x02, 0x14, 0xf0, 0xcb, 0x07, 0x00, 0x40, 0x00,
+    0x42, 0x01, 0x20, 0xe0, 0x00, 0x21, 0x02, 0x00,
+    0x02, 0x3e, 0xbc, 0x70, 0x00, 0x38, 0x00, 0x4a,
+    0x8e, 0x09, 0x15, 0xcf, 0xe0, 0xe0, 0x00, 0x5c,
+    0x17, 0x83, 0x80, 0x04, 0xd5, 0x72, 0xb1, 0xec
+};
+
+static const unsigned char VC2_SEQUENCE_HEADER[] =
+    {0x70, 0x85, 0x58, 0x84, 0x3f};
+
+static const unsigned char VC2_PICTURE[] =
+    {0x00, 0x00, 0x00, 0x00, 0x2d, 0x50, 0x18, 0x08, 0x1b, 0x7f, 0x10};
 
 // don't care data
 static unsigned char DATA[4096];
 
 
 
-static void init_data()
+static void init_data(int init_val)
 {
-    size_t i;
-    for (i = 0; i < sizeof(DATA); i++)
-        DATA[i] = (unsigned char)i;
+    if (init_val >= 0) {
+      memset(DATA, init_val, sizeof(DATA));
+    } else {
+      size_t i;
+      for (i = 0; i < sizeof(DATA); i++)
+          DATA[i] = (unsigned char)i;
+    }
 }
 
 static void set_mpeg_bit(unsigned char *data, uint32_t bit_offset, unsigned char bit)
@@ -140,52 +205,67 @@ static void set_mpeg_bits(unsigned char *data, uint32_t bit_offset, uint8_t num_
 
 static void set_mpeg_start_code(unsigned char *data, uint32_t offset, uint32_t code)
 {
-    data[offset] = (unsigned char)((code >> 24) & 0xff);
+    data[offset    ] = (unsigned char)((code >> 24) & 0xff);
     data[offset + 1] = (unsigned char)((code >> 16) & 0xff);
     data[offset + 2] = (unsigned char)((code >> 8) & 0xff);
     data[offset + 3] = (unsigned char)(code & 0xff);
 }
 
-static void fill_mpeg_frame(unsigned char *data, uint32_t data_size,
-                            bool seq_header, uint32_t bit_rate, bool low_delay, bool closed_gop,
-                            uint32_t h_size, uint32_t v_size,
-                            uint32_t temporal_ref, uint32_t frame_type)
+static void fill_mpeg_frame(unsigned char *data, uint32_t data_size, const MPEGInfo *info)
 {
     assert(data_size > 400);
 
     uint32_t set_offset = 0;
-    if (seq_header) {
+    if (info->seq_header) {
         set_mpeg_start_code(data, 0, MPEG_SEQUENCE_HEADER_CODE);
         set_offset = 0;
-        set_mpeg_bits(data, set_offset * 8 + 32, 12, h_size);
-        set_mpeg_bits(data, set_offset * 8 + 44, 12, v_size);
-        set_mpeg_bits(data, set_offset * 8 + 64, 18, bit_rate);
+        set_mpeg_bits(data, set_offset * 8 + 32, 12, info->h_size);
+        set_mpeg_bits(data, set_offset * 8 + 44, 12, info->v_size);
+        set_mpeg_bits(data, set_offset * 8 + 64, 18, info->bit_rate);
         set_offset += 100;
 
         set_mpeg_start_code(data, set_offset, MPEG_SEQUENCE_EXT_CODE);
         set_mpeg_bits(data, set_offset * 8 + 32, 4, 0x01);
-        set_mpeg_bits(data, set_offset * 8 + 47, 2, h_size >> 12);
-        set_mpeg_bits(data, set_offset * 8 + 49, 2, v_size >> 12);
-        set_mpeg_bits(data, set_offset * 8 + 51, 12, bit_rate >> 18);
-        set_mpeg_bits(data, set_offset * 8 + 72, 1, low_delay);
+        set_mpeg_bits(data, set_offset * 8 + 36, 8,  info->profile_level);
+        set_mpeg_bits(data, set_offset * 8 + 44, 1,  info->is_progressive);
+        set_mpeg_bits(data, set_offset * 8 + 45, 2,  info->chroma_format);
+        set_mpeg_bits(data, set_offset * 8 + 47, 2,  info->h_size >> 12);
+        set_mpeg_bits(data, set_offset * 8 + 49, 2,  info->v_size >> 12);
+        set_mpeg_bits(data, set_offset * 8 + 51, 12, info->bit_rate >> 18);
+        set_mpeg_bits(data, set_offset * 8 + 72, 1,  info->low_delay);
         set_offset += 100;
 
         set_mpeg_start_code(data, set_offset, MPEG_GROUP_HEADER_CODE);
-        set_mpeg_bits(data, set_offset * 8 + 57, 1, closed_gop);
+        set_mpeg_bits(data, set_offset * 8 + 57, 1, info->closed_gop);
         set_offset += 100;
     }
 
     set_mpeg_start_code(data, set_offset, MPEG_PICTURE_START_CODE);
-    set_mpeg_bits(data, set_offset * 8 + 32, 10, temporal_ref);
-    set_mpeg_bits(data, set_offset * 8 + 42, 3, frame_type);
+    set_mpeg_bits(data, set_offset * 8 + 32, 10, info->temporal_ref);
+    set_mpeg_bits(data, set_offset * 8 + 42, 3,  info->frame_type);
 }
 
 static void write_buffer(FILE *file, const unsigned char *buffer, size_t size)
 {
-    if (fwrite(buffer, size, 1, file) != 1) {
+    if (fwrite(buffer, 1, size, file) != size) {
         fprintf(stderr, "Failed to write data: %s\n", strerror(errno));
         exit(1);
     }
+}
+
+static void write_zeros(FILE *file, size_t size)
+{
+    static const unsigned char zeros[256] = {0};
+
+    size_t whole_count   = size / sizeof(zeros);
+    size_t partial_count = size % sizeof(zeros);
+
+    size_t i;
+    for (i = 0; i < whole_count; i++)
+        write_buffer(file, zeros, sizeof(zeros));
+
+    if (partial_count > 0)
+        write_buffer(file, zeros, partial_count);
 }
 
 static void write_data(FILE *file, int64_t size)
@@ -201,10 +281,10 @@ static void write_data(FILE *file, int64_t size)
         write_buffer(file, DATA, (size_t)partial_data_size);
 }
 
-static void write_pcm(FILE *file, unsigned int duration)
+static void write_pcm(FILE *file, uint16_t block_align, unsigned int duration)
 {
-    // 1920 samples per 25Hz frame, 2 bytes per sample
-    write_data(file, duration * 1920 * 2);
+    // 1920 samples per 25Hz frame, block_align bytes per sample
+    write_data(file, duration * 1920 * block_align);
 }
 
 static void write_dv25(FILE *file, unsigned int duration)
@@ -227,55 +307,88 @@ static void write_dv100_720p(FILE *file, unsigned int duration)
     write_data(file, duration * 288000);
 }
 
-static void write_avci_frame(FILE *file, unsigned int frame_size, bool is_first)
+static void write_avci_frame(FILE *file, unsigned int non_vcl_size, unsigned int vcl_size, bool is_first)
 {
     if (is_first) {
-        write_buffer(file, AVCI_FIRST_FRAME_PREFIX_DATA, sizeof(AVCI_FIRST_FRAME_PREFIX_DATA));
-        write_data(file, frame_size - sizeof(AVCI_FIRST_FRAME_PREFIX_DATA));
+        write_buffer(file, AVCI_AUD_DATA, sizeof(AVCI_AUD_DATA));
+        write_buffer(file, AVCI_SPS_DATA, sizeof(AVCI_SPS_DATA));
+        write_zeros(file, 256 - (sizeof(AVCI_AUD_DATA) + sizeof(AVCI_SPS_DATA)));
+        write_buffer(file, AVCI_PPS_DATA, sizeof(AVCI_PPS_DATA));
+        write_zeros(file, non_vcl_size - (256 + sizeof(AVCI_PPS_DATA)));
     } else {
-        write_buffer(file, AVCI_NON_FIRST_FRAME_PREFIX_DATA, sizeof(AVCI_NON_FIRST_FRAME_PREFIX_DATA));
-        write_data(file, frame_size - sizeof(AVCI_NON_FIRST_FRAME_PREFIX_DATA));
+        write_buffer(file, AVCI_AUD_DATA, sizeof(AVCI_AUD_DATA));
+        write_zeros(file, non_vcl_size - sizeof(AVCI_AUD_DATA));
     }
+    write_buffer(file, AVCI_SLICE_DATA, sizeof(AVCI_SLICE_DATA));
+    write_data(file, vcl_size - sizeof(AVCI_SLICE_DATA));
+}
+
+static void write_avci200_1080(FILE *file, unsigned int duration)
+{
+    write_avci_frame(file, 19 * 512, 1134592, true);
+
+    unsigned int i;
+    for (i = 1; i < duration; i++)
+        write_avci_frame(file, 18 * 512, 1134592, false);
 }
 
 static void write_avci100_1080(FILE *file, unsigned int duration)
 {
-    write_avci_frame(file, 19 * 512 + 559104, true);
+    write_avci_frame(file, 19 * 512, 559104, true);
 
     unsigned int i;
     for (i = 1; i < duration; i++)
-        write_avci_frame(file, 18 * 512 + 559104, false);
+        write_avci_frame(file, 18 * 512, 559104, false);
+}
+
+static void write_avci200_720(FILE *file, unsigned int duration)
+{
+    write_avci_frame(file, 11 * 512, 566784, true);
+
+    unsigned int i;
+    for (i = 1; i < duration; i++)
+        write_avci_frame(file, 10 * 512, 566784, false);
 }
 
 static void write_avci100_720(FILE *file, unsigned int duration)
 {
-    write_avci_frame(file, 11 * 512 + 279040, true);
+    write_avci_frame(file, 11 * 512, 279040, true);
 
     unsigned int i;
     for (i = 1; i < duration; i++)
-        write_avci_frame(file, 10 * 512 + 279040, false);
+        write_avci_frame(file, 10 * 512, 279040, false);
 }
 
 static void write_avci50_1080(FILE *file, unsigned int duration)
 {
-    write_avci_frame(file, 19 * 512 + 271360, true);
+    write_avci_frame(file, 19 * 512, 271360, true);
 
     unsigned int i;
     for (i = 1; i < duration; i++)
-        write_avci_frame(file, 18 * 512 + 271360, false);
+        write_avci_frame(file, 18 * 512, 271360, false);
 }
 
 static void write_avci50_720(FILE *file, unsigned int duration)
 {
-    write_avci_frame(file, 11 * 512 + 135168, true);
+    write_avci_frame(file, 11 * 512, 135168, true);
 
     unsigned int i;
     for (i = 1; i < duration; i++)
-        write_avci_frame(file, 10 * 512 + 135168, false);
+        write_avci_frame(file, 10 * 512, 135168, false);
 }
 
 static void write_d10(FILE *file, int type, unsigned int duration)
 {
+    MPEGInfo mpeg_info;
+    memset(&mpeg_info, 0, sizeof(mpeg_info));
+    mpeg_info.seq_header     = true;
+    mpeg_info.profile_level  = 133;
+    mpeg_info.chroma_format  = 2;
+    mpeg_info.low_delay      = true;
+    mpeg_info.h_size         = 720;
+    mpeg_info.v_size         = 608;
+    mpeg_info.frame_type     = MPEG_I_FRAME_TYPE;
+
     uint32_t frame_size;
     switch (type)
     {
@@ -290,54 +403,85 @@ static void write_d10(FILE *file, int type, unsigned int duration)
             frame_size = 150000;
             break;
     }
+    mpeg_info.bit_rate = (frame_size * 25 * 8) / 400;
 
     unsigned char *data = new unsigned char[frame_size];
     memset(data, 0, frame_size);
-    fill_mpeg_frame(data, frame_size,
-                    true, (frame_size * 25 * 8) / 400, true, false,
-                    720, 608,
-                    0, MPEG_I_FRAME_TYPE);
+    fill_mpeg_frame(data, frame_size, &mpeg_info);
 
     unsigned int i;
     for (i = 0; i < duration; i++)
         write_buffer(file, data, frame_size);
 }
 
-static void write_mpeg2lg(FILE *file, int type, unsigned int duration)
+static void write_mpeg2lg(FILE *file, int type, unsigned int duration, bool low_delay, bool closed_gop)
 {
+    MPEGInfo mpeg_info;
+    memset(&mpeg_info, 0, sizeof(mpeg_info));
+    mpeg_info.is_progressive = false;
+    mpeg_info.low_delay      = low_delay;
+
     uint32_t i_frame_size, non_i_frame_size;
-    uint32_t width, height;
-    uint32_t bit_rate;
     switch (type)
     {
         case TYPE_MPEG2LG_422P_HL_1080I:
         case TYPE_MPEG2LG_422P_HL_1080P:
-        case TYPE_MPEG2LG_MP_HL_1080I:
-        case TYPE_MPEG2LG_MP_HL_1080P:
-            i_frame_size = 270000;
+            i_frame_size     = 270000;
             non_i_frame_size = 240000;
-            width = 1920;
-            height = 1080;
-            bit_rate = (50 * 1000 * 1000) / 400;
+            mpeg_info.profile_level = 0x82;
+            mpeg_info.chroma_format = 2;
+            mpeg_info.h_size        = 1920;
+            mpeg_info.v_size        = 1080;
+            mpeg_info.bit_rate      = (50 * 1000 * 1000) / 400;
             break;
         case TYPE_MPEG2LG_422P_HL_720P:
-        case TYPE_MPEG2LG_MP_HL_720P:
-            i_frame_size = 270000;
+            i_frame_size     = 270000;
             non_i_frame_size = 240000;
-            width = 1280;
-            height = 720;
-            bit_rate = (50 * 1000 * 1000) / 400;
+            mpeg_info.profile_level = 0x82;
+            mpeg_info.chroma_format = 2;
+            mpeg_info.h_size        = 1280;
+            mpeg_info.v_size        = 720;
+            mpeg_info.bit_rate      = (50 * 1000 * 1000) / 400;
+            break;
+        case TYPE_MPEG2LG_MP_HL_1080I:
+        case TYPE_MPEG2LG_MP_HL_1080P:
+            i_frame_size     = 270000;
+            non_i_frame_size = 240000;
+            mpeg_info.profile_level = 0x44;
+            mpeg_info.chroma_format = 1;
+            mpeg_info.h_size        = 1920;
+            mpeg_info.v_size        = 1080;
+            mpeg_info.bit_rate      = (50 * 1000 * 1000) / 400;
+            break;
+        case TYPE_MPEG2LG_MP_HL_720P:
+            i_frame_size     = 270000;
+            non_i_frame_size = 240000;
+            mpeg_info.profile_level = 0x44;
+            mpeg_info.chroma_format = 1;
+            mpeg_info.h_size        = 1280;
+            mpeg_info.v_size        = 720;
+            mpeg_info.bit_rate      = (50 * 1000 * 1000) / 400;
+            break;
+        case TYPE_MPEG2LG_MP_HL_1080I_1440:
+        case TYPE_MPEG2LG_MP_HL_1080P_1440:
+            i_frame_size     = 195000;
+            non_i_frame_size = 165000;
+            mpeg_info.profile_level = 0x44;
+            mpeg_info.chroma_format = 1;
+            mpeg_info.h_size        = 1440;
+            mpeg_info.v_size        = 1080;
+            mpeg_info.bit_rate      = (35 * 1000 * 1000) / 400;
             break;
         case TYPE_MPEG2LG_MP_H14_1080I:
         case TYPE_MPEG2LG_MP_H14_1080P:
-        case TYPE_MPEG2LG_MP_HL_1080I_1440:
-        case TYPE_MPEG2LG_MP_HL_1080P_1440:
         default:
-            i_frame_size = 195000;
+            i_frame_size     = 195000;
             non_i_frame_size = 165000;
-            width = 1440;
-            height = 1080;
-            bit_rate = (35 * 1000 * 1000) / 400;
+            mpeg_info.profile_level = 0x46;
+            mpeg_info.chroma_format = 1;
+            mpeg_info.h_size        = 1440;
+            mpeg_info.v_size        = 1080;
+            mpeg_info.bit_rate      = (35 * 1000 * 1000) / 400;
             break;
     }
     uint32_t max_frame_size = i_frame_size > non_i_frame_size ? i_frame_size : non_i_frame_size;
@@ -349,41 +493,161 @@ static void write_mpeg2lg(FILE *file, int type, unsigned int duration)
         memset(data, 0, max_frame_size);
         switch (i % 12) {
             case 0:
-                fill_mpeg_frame(data, i_frame_size, true, bit_rate, true, i == 0, width, height, 2, MPEG_I_FRAME_TYPE);
+                mpeg_info.seq_header   = true;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 0;
+                    mpeg_info.frame_type   = MPEG_I_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = (i == 0);
+                    mpeg_info.temporal_ref = 2;
+                    mpeg_info.frame_type   = MPEG_I_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, i_frame_size, &mpeg_info);
                 break;
             case 1:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 0, MPEG_B_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 3;
+                    mpeg_info.frame_type   = MPEG_P_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 0;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 2:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 1, MPEG_B_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 1;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 1;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 3:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 5, MPEG_P_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 2;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 5;
+                    mpeg_info.frame_type   = MPEG_P_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 4:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 3, MPEG_B_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 6;
+                    mpeg_info.frame_type   = MPEG_P_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 3;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 5:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 4, MPEG_B_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 4;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 4;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 6:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 8, MPEG_P_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 5;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 8;
+                    mpeg_info.frame_type   = MPEG_P_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 7:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 6, MPEG_B_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 9;
+                    mpeg_info.frame_type   = MPEG_P_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 6;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 8:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 7, MPEG_B_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 7;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 7;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 9:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 11, MPEG_P_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 8;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 11;
+                    mpeg_info.frame_type   = MPEG_P_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 10:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 9, MPEG_B_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 11;
+                    mpeg_info.frame_type   = MPEG_P_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 9;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
             case 11:
             default:
-                fill_mpeg_frame(data, non_i_frame_size, false, bit_rate, true, false, width, height, 10, MPEG_B_FRAME_TYPE);
+                mpeg_info.seq_header   = false;
+                if (closed_gop) {
+                    mpeg_info.closed_gop   = true;
+                    mpeg_info.temporal_ref = 10;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                } else {
+                    mpeg_info.closed_gop   = false;
+                    mpeg_info.temporal_ref = 10;
+                    mpeg_info.frame_type   = MPEG_B_FRAME_TYPE;
+                }
+                fill_mpeg_frame(data, non_i_frame_size, &mpeg_info);
                 break;
         }
 
@@ -392,6 +656,8 @@ static void write_mpeg2lg(FILE *file, int type, unsigned int duration)
         else
             write_buffer(file, data, non_i_frame_size);
     }
+
+    delete [] data;
 }
 
 static void write_unc(FILE *file, int type, unsigned int duration)
@@ -406,6 +672,9 @@ static void write_unc(FILE *file, int type, unsigned int duration)
         case TYPE_UNC_HD_1080P:
             frame_size = 1920 * 1080 * 2;
             break;
+        case TYPE_UNC_UHD_3840:
+            frame_size = 3840 * 2160 * 2;
+            break;
         case TYPE_UNC_HD_720P:
         default:
             frame_size = 1280 * 720 * 2;
@@ -413,6 +682,64 @@ static void write_unc(FILE *file, int type, unsigned int duration)
     }
 
     write_data(file, duration * frame_size);
+}
+
+static void set_vc2_parse_info(unsigned char *data, uint8_t parse_code, uint32_t next_parse_offset,
+                               uint32_t prev_parse_offset)
+{
+    data[0] = 0x42;
+    data[1] = 0x42;
+    data[2] = 0x43;
+    data[3] = 0x44;
+    data[4] = parse_code;
+    data[5] = (uint8_t)(next_parse_offset >> 24);
+    data[6] = (uint8_t)(next_parse_offset >> 16);
+    data[7] = (uint8_t)(next_parse_offset >> 8);
+    data[8] = (uint8_t)(next_parse_offset);
+    data[9] = (uint8_t)(prev_parse_offset >> 24);
+    data[10] = (uint8_t)(prev_parse_offset >> 16);
+    data[11] = (uint8_t)(prev_parse_offset >> 8);
+    data[12] = (uint8_t)(prev_parse_offset);
+}
+
+static void write_vc2(FILE *file, unsigned int duration)
+{
+    uint32_t next, prev;
+    uint32_t size = 0;
+    uint32_t seq_end_offset;
+
+    prev = 0;
+    next = 13 + sizeof(VC2_SEQUENCE_HEADER);
+    set_vc2_parse_info(&DATA[size], 0x00, next, prev);
+    memcpy(&DATA[size + 13], VC2_SEQUENCE_HEADER, sizeof(VC2_SEQUENCE_HEADER));
+    size += next;
+    seq_end_offset = size;
+
+    prev = next;
+    next = 13 + 4;
+    set_vc2_parse_info(&DATA[size], 0x20, next, prev); // auxilliary
+    memset(&DATA[size + 13], 0, 4);
+    size += next;
+
+    prev = next;
+    next = 13 + sizeof(VC2_PICTURE);
+    set_vc2_parse_info(&DATA[size], 0xe8, 0, prev); // next set to 0 to force search for next parse info
+    memcpy(&DATA[size + 13], VC2_PICTURE, sizeof(VC2_PICTURE));
+    size += next;
+
+    prev = next;
+    next = 13 + 4;
+    set_vc2_parse_info(&DATA[size], 0x30, next, prev); // padding
+    memset(&DATA[size + 13], 0, 4);
+    size += next;
+
+    unsigned int i;
+    for (i = 0; i < duration; i++) {
+        if (i == 0)
+            write_buffer(file, DATA, size);
+        else
+            write_buffer(file, &DATA[seq_end_offset], size - seq_end_offset);
+    }
 }
 
 static void write_vc3(FILE *file, int type, unsigned int duration)
@@ -438,6 +765,9 @@ static void write_vc3(FILE *file, int type, unsigned int duration)
         case TYPE_VC3_1080I_1243:
             frame_size = 917504;
             break;
+        case TYPE_VC3_1080I_1244:
+            frame_size = 606208;
+            break;
         case TYPE_VC3_720P_1250:
             frame_size = 458752;
             break;
@@ -448,8 +778,17 @@ static void write_vc3(FILE *file, int type, unsigned int duration)
             frame_size = 303104;
             break;
         case TYPE_VC3_1080P_1253:
-        default:
             frame_size = 188416;
+            break;
+        case TYPE_VC3_720P_1258:
+            frame_size = 212992;
+            break;
+        case TYPE_VC3_1080P_1259:
+            frame_size = 417792;
+            break;
+        case TYPE_VC3_1080I_1260:
+        default:
+            frame_size = 417792;
             break;
     }
 
@@ -468,6 +807,32 @@ static void write_avid_alpha(FILE *file, int type, unsigned int duration)
     }
 
     write_data(file, duration * frame_size);
+}
+
+static void write_anc_data(FILE *file, unsigned int duration)
+{
+    static const unsigned char anc_frame[24] =
+        {0x00, 0x01,                                        // single line / packet
+         0x00, 0x09, 0x01, 0x04, 0x00, 0x07,                // line 9, VANCFrame, ANC_8_BIT_COMP_LUMA, 7 samples
+         0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01,    // payload array header: 8 x 1 bytes
+         0x45, 0x04, 0x04, 0x21, 0x22, 0x23, 0x24, 0x00};   // payload array: DID (1), SDID (1), DC (1), UDW (4), padding (1)
+
+    unsigned int i;
+    for (i = 0; i < duration; i++)
+        write_buffer(file, anc_frame, sizeof(anc_frame));
+}
+
+static void write_vbi_data(FILE *file, unsigned int duration)
+{
+    static const unsigned char vbi_frame[24] =
+        {0x00, 0x01,                                        // single line
+         0x00, 0x15, 0x01, 0x04, 0x00, 0x08,                // line 21, VBIFrame, VBI_8_BIT_COMP_LUMA, 8 samples
+         0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01,    // payload array header: 8 x 1 bytes
+         0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47};   // payload array
+
+    unsigned int i;
+    for (i = 0; i < duration; i++)
+        write_buffer(file, vbi_frame, sizeof(vbi_frame));
 }
 
 
@@ -516,6 +881,19 @@ static void print_usage(const char *cmd)
     fprintf(stderr, " 39: VC3/DNxHD 1252 1280x720p 220/185/110/90 Mbps\n");
     fprintf(stderr, " 40: VC3/DNxHD 1253 1920x1080p 45/36 Mbps\n");
     fprintf(stderr, " 41: AVID Alpha HD 1080I\n");
+    fprintf(stderr, " 42: 24-bit PCM\n");
+    fprintf(stderr, " 43: ANC data\n");
+    fprintf(stderr, " 44: VBI data\n");
+    fprintf(stderr, " 45: UNC UHD 3840\n");
+    fprintf(stderr, " 46: AVC Intra 200 1080i\n");
+    fprintf(stderr, " 47: AVC Intra 200 1080p\n");
+    fprintf(stderr, " 48: AVC Intra 200 720p\n");
+    fprintf(stderr, " 49: VC3/DNxHD 1244 1080i\n");
+    fprintf(stderr, " 50: VC3/DNxHD 1258 720p\n");
+    fprintf(stderr, " 51: VC3/DNxHD 1259 1080p\n");
+    fprintf(stderr, " 52: VC3/DNxHD 1260 1080i\n");
+    fprintf(stderr, " 53: MPEG-2 Long GOP 422P@HL 1080i (AS-10)\n");
+    fprintf(stderr, " 54: VC2\n");
 }
 
 int main(int argc, const char **argv)
@@ -523,6 +901,7 @@ int main(int argc, const char **argv)
     const char *filename;
     unsigned int duration = 25;
     int type = TYPE_UNKNOWN;
+    int init_val = -1;
     int cmdln_index;
 
     for (cmdln_index = 1; cmdln_index < argc; cmdln_index++) {
@@ -549,6 +928,21 @@ int main(int argc, const char **argv)
             }
             if (sscanf(argv[cmdln_index + 1], "%d", &type) != 1 ||
                 type <= TYPE_UNKNOWN || type >= TYPE_END)
+            {
+                print_usage(argv[0]);
+                fprintf(stderr, "Invalid argument '%s' for '%s'\n", argv[cmdln_index + 1], argv[cmdln_index]);
+                return 1;
+            }
+            cmdln_index++;
+        }
+        else if (strcmp(argv[cmdln_index], "-s") == 0)
+        {
+            if (cmdln_index + 1 >= argc) {
+                print_usage(argv[0]);
+                fprintf(stderr, "Missing argument for '%s'\n", argv[cmdln_index]);
+                return 1;
+            }
+            if (sscanf(argv[cmdln_index + 1], "%d", &init_val) != 1)
             {
                 print_usage(argv[0]);
                 fprintf(stderr, "Invalid argument '%s' for '%s'\n", argv[cmdln_index + 1], argv[cmdln_index]);
@@ -590,7 +984,7 @@ int main(int argc, const char **argv)
     filename = argv[cmdln_index];
 
 
-    init_data();
+    init_data(init_val);
 
     FILE *file = fopen(filename, "wb");
     if (!file) {
@@ -600,8 +994,8 @@ int main(int argc, const char **argv)
 
     switch (type)
     {
-        case TYPE_PCM:
-            write_pcm(file, duration);
+        case TYPE_16BIT_PCM:
+            write_pcm(file, 2, duration);
             break;
         case TYPE_IEC_DV25:
         case TYPE_DVBASED_DV25:
@@ -616,6 +1010,13 @@ int main(int argc, const char **argv)
             break;
         case TYPE_DV100_720P:
             write_dv100_720p(file, duration);
+            break;
+        case TYPE_AVCI200_1080I:
+        case TYPE_AVCI200_1080P:
+            write_avci200_1080(file, duration);
+            break;
+        case TYPE_AVCI200_720P:
+            write_avci200_720(file, duration);
             break;
         case TYPE_AVCI100_1080I:
         case TYPE_AVCI100_1080P:
@@ -646,13 +1047,20 @@ int main(int argc, const char **argv)
         case TYPE_MPEG2LG_MP_HL_1080P_1440:
         case TYPE_MPEG2LG_422P_HL_720P:
         case TYPE_MPEG2LG_MP_HL_720P:
-            write_mpeg2lg(file, type, duration);
+            write_mpeg2lg(file, type, duration, true, false);
+            break;
+        case TYPE_AS10_MPEG2LG_422P_HL_1080I:
+            write_mpeg2lg(file, TYPE_MPEG2LG_422P_HL_1080I, duration, false, true);
             break;
         case TYPE_UNC_SD:
         case TYPE_UNC_HD_1080I:
         case TYPE_UNC_HD_1080P:
         case TYPE_UNC_HD_720P:
+        case TYPE_UNC_UHD_3840:
             write_unc(file, type, duration);
+            break;
+        case TYPE_VC2:
+            write_vc2(file, duration);
             break;
         case TYPE_VC3_1080P_1235:
         case TYPE_VC3_1080P_1237:
@@ -660,14 +1068,27 @@ int main(int argc, const char **argv)
         case TYPE_VC3_1080I_1241:
         case TYPE_VC3_1080I_1242:
         case TYPE_VC3_1080I_1243:
+        case TYPE_VC3_1080I_1244:
         case TYPE_VC3_720P_1250:
         case TYPE_VC3_720P_1251:
         case TYPE_VC3_720P_1252:
         case TYPE_VC3_1080P_1253:
+        case TYPE_VC3_720P_1258:
+        case TYPE_VC3_1080P_1259:
+        case TYPE_VC3_1080I_1260:
             write_vc3(file, type, duration);
             break;
         case TYPE_AVID_ALPHA_HD_1080I:
             write_avid_alpha(file, type, duration);
+            break;
+        case TYPE_24BIT_PCM:
+            write_pcm(file, 3, duration);
+            break;
+        case TYPE_ANC_DATA:
+            write_anc_data(file, duration);
+            break;
+        case TYPE_VBI_DATA:
+            write_vbi_data(file, duration);
             break;
         case TYPE_UNKNOWN:
         case TYPE_END:

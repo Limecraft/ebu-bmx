@@ -29,14 +29,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_ESSENCE_PARSER_H__
-#define __BMX_ESSENCE_PARSER_H__
+#ifndef BMX_ESSENCE_PARSER_H_
+#define BMX_ESSENCE_PARSER_H_
 
 
 #include <bmx/BMXTypes.h>
 
 
-#define ESSENCE_PARSER_NULL_OFFSET    0xffffffff
+#define ESSENCE_PARSER_NULL_OFFSET          0xffffffff
+#define ESSENCE_PARSER_NULL_FRAME_SIZE      0x00000000
 
 
 

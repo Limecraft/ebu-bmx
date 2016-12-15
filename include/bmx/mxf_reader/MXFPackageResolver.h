@@ -29,13 +29,16 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_PACKAGE_RESOLVER_H__
-#define __BMX_MXF_PACKAGE_RESOLVER_H__
+#ifndef BMX_MXF_PACKAGE_RESOLVER_H_
+#define BMX_MXF_PACKAGE_RESOLVER_H_
 
 
 #include <vector>
+#include <map>
 
 #include <libMXF++/MXF.h>
+
+#include <bmx/mxf_helper/MXFFileFactory.h>
 
 
 
@@ -65,7 +68,9 @@ class MXFPackageResolver
 public:
     virtual ~MXFPackageResolver() {};
 
-    virtual void ExtractResolvedPackages(MXFFileReader *file_reader) = 0;
+    virtual void SetFileFactory(MXFFileFactory *factory, bool take_ownership) = 0;
+
+    virtual void ExtractPackages(MXFFileReader *file_reader) = 0;
 
 public:
     virtual std::vector<ResolvedPackage> ResolveSourceClip(mxfpp::SourceClip *source_clip) = 0;
@@ -83,7 +88,9 @@ public:
     DefaultMXFPackageResolver();
     virtual ~DefaultMXFPackageResolver();
 
-    virtual void ExtractResolvedPackages(MXFFileReader *file_reader);
+    virtual void SetFileFactory(MXFFileFactory *factory, bool take_ownership);
+
+    virtual void ExtractPackages(MXFFileReader *file_reader);
 
 public:
     virtual std::vector<ResolvedPackage> ResolveSourceClip(mxfpp::SourceClip *source_clip);
@@ -93,8 +100,11 @@ public:
     virtual std::vector<ResolvedPackage> GetResolvedPackages() { return mResolvedPackages; }
 
 protected:
-    MXFFileReader* mFileReader;
+    MXFFileFactory *mFileFactory;
+    bool mOwnFilefactory;
+    MXFFileReader *mFileReader;
     std::vector<ResolvedPackage> mResolvedPackages;
+    std::map<mxfUMID, mxfKey> mResolvedPackageTypeMap;
     std::vector<MXFFileReader*> mExternalReaders;
 };
 

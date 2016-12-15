@@ -79,30 +79,34 @@ static const AS02SampleRateSupport AS02_SAMPLE_RATE_SUPPORT[] =
     {DVBASED_DV25,             {{25, 1}, {30000, 1001}, {0, 0}}},
     {DV50,                     {{25, 1}, {30000, 1001}, {0, 0}}},
     {DV100_1080I,              {{25, 1}, {30000, 1001}, {0, 0}}},
-    {DV100_720P,               {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {DV100_720P,               {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {D10_30,                   {{25, 1}, {30000, 1001}, {0, 0}}},
     {D10_40,                   {{25, 1}, {30000, 1001}, {0, 0}}},
     {D10_50,                   {{25, 1}, {30000, 1001}, {0, 0}}},
+    {AVCI200_1080I,            {{25, 1}, {30000, 1001}, {0, 0}}},
+    {AVCI200_1080P,            {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI200_720P,             {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {AVCI100_1080I,            {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI100_1080P,            {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI100_720P,             {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI100_1080P,            {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI100_720P,             {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {AVCI50_1080I,             {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI50_1080P,             {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI50_720P,              {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI50_1080P,             {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI50_720P,              {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {UNC_SD,                   {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {UNC_HD_1080I,             {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {UNC_HD_1080P,             {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {UNC_HD_720P,              {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {UNC_UHD_3840,             {{-1, -1}, {0, 0}}},
     {MPEG2LG_422P_HL_1080I,    {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_422P_HL_1080P,    {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_422P_HL_720P,     {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {MPEG2LG_422P_HL_1080P,    {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_422P_HL_720P,     {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {MPEG2LG_MP_HL_1920_1080I, {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_HL_1920_1080P, {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_HL_1920_1080P, {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
     {MPEG2LG_MP_HL_1440_1080I, {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_HL_1440_1080P, {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_HL_720P,       {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_HL_1440_1080P, {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_HL_720P,       {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {MPEG2LG_MP_H14_1080I,     {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_H14_1080P,     {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_H14_1080P,     {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
     {WAVE_PCM,                 {{48000,1}, {0, 0}}},
 };
 
@@ -111,7 +115,7 @@ static const AS02SampleRateSupport AS02_SAMPLE_RATE_SUPPORT[] =
 static string get_track_clip_name(string &clip_name, bool is_video, uint32_t track_number)
 {
     char buffer[16];
-    sprintf(buffer, "__track_%s%u", is_video ? "v" : "a", track_number);
+    bmx_snprintf(buffer, sizeof(buffer), "__track_%s%u", is_video ? "v" : "a", track_number);
 
     return clip_name + buffer;
 }
@@ -121,8 +125,11 @@ static string get_track_clip_name(string &clip_name, bool is_video, uint32_t tra
 bool AS02Track::IsSupported(EssenceType essence_type, mxfRational sample_rate)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(AS02_SAMPLE_RATE_SUPPORT); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(AS02_SAMPLE_RATE_SUPPORT); i++) {
         if (essence_type == AS02_SAMPLE_RATE_SUPPORT[i].essence_type) {
+            if (AS02_SAMPLE_RATE_SUPPORT[i].sample_rate[0].numerator < 0)
+                return true;
+
             size_t j = 0;
             while (AS02_SAMPLE_RATE_SUPPORT[i].sample_rate[j].numerator) {
                 if (sample_rate == AS02_SAMPLE_RATE_SUPPORT[i].sample_rate[j])
@@ -150,6 +157,9 @@ AS02Track* AS02Track::OpenNew(AS02Clip *clip, File *file, string rel_uri, uint32
         case D10_40:
         case D10_50:
             return new AS02D10Track(clip, track_index, essence_type, file, rel_uri);
+        case AVCI200_1080I:
+        case AVCI200_1080P:
+        case AVCI200_720P:
         case AVCI100_1080I:
         case AVCI100_1080P:
         case AVCI100_720P:
@@ -161,6 +171,7 @@ AS02Track* AS02Track::OpenNew(AS02Clip *clip, File *file, string rel_uri, uint32
         case UNC_HD_1080I:
         case UNC_HD_1080P:
         case UNC_HD_720P:
+        case UNC_UHD_3840:
             return new AS02UncTrack(clip, track_index, essence_type, file, rel_uri);
         case MPEG2LG_422P_HL_1080I:
         case MPEG2LG_422P_HL_1080P:
@@ -201,13 +212,12 @@ AS02Track::AS02Track(AS02Clip *clip, uint32_t track_index, EssenceType essence_t
     mIndexSID = 1;
     mBodySID = 2;
     mLLen = 4;
+    mEssenceElementLLen = 4;
     mKAGSize = 1;
     mxf_generate_umid(&mMaterialPackageUID);
     mxf_generate_umid(&mFileSourcePackageUID);
-    mHeaderMetadataStartPos = 0;
     mHeaderMetadataEndPos = 0;
     mCBEIndexSegment = 0;
-    mIndexTableStartPos = 0;
     mMaterialPackage = 0;
     mFileSourcePackage = 0;
     mHaveLowerLevelSourcePackage = false;
@@ -217,12 +227,12 @@ AS02Track::AS02Track(AS02Clip *clip, uint32_t track_index, EssenceType essence_t
 
     mEssenceType = essence_type;
     mDescriptorHelper = MXFDescriptorHelper::Create(essence_type);
-    mDescriptorHelper->SetFlavour(MXFDescriptorHelper::SMPTE_377_1_FLAVOUR);
+    mDescriptorHelper->SetFlavour(MXFDESC_SMPTE_377_1_FLAVOUR);
 
     mManifestFile = clip->GetBundle()->GetManifest()->RegisterFile(rel_uri, ESSENCE_COMPONENT_FILE_ROLE);
     mManifestFile->SetId(mFileSourcePackageUID);
 
-    md5_init(&mEssenceOnlyMD5Context);
+    mEssenceOnlyChecksum.Init(MD5_CHECKSUM);
 
     // use fill key with correct version number
     g_KLVFill_key = g_CompliantKLVFill_key;
@@ -324,14 +334,18 @@ void AS02Track::CompleteWrite()
     if (!HaveCBEIndexTable() && HaveVBEIndexEntries()) {
         // write a index partition pack and VBE index table
 
+        mMXFFile->openMemoryFile(8192);
+
         Partition &index_partition = mMXFFile->createPartition();
-        index_partition.setKey(&MXF_PP_K(OpenIncomplete, Body));
+        index_partition.setKey(&MXF_PP_K(OpenComplete, Body));
         index_partition.setIndexSID(mIndexSID);
         index_partition.setBodySID(0);
         index_partition.write(mMXFFile);
-        index_partition.fillToKag(mMXFFile);
 
         WriteVBEIndexTable(&index_partition);
+
+        mMXFFile->updatePartitions();
+        mMXFFile->closeMemoryFile();
     }
 
 
@@ -348,7 +362,6 @@ void AS02Track::CompleteWrite()
     footer_partition.setIndexSID(0);
     footer_partition.setBodySID(0);
     footer_partition.write(mMXFFile);
-    footer_partition.fillToKag(mMXFFile);
 
 
     // write the RIP
@@ -357,32 +370,47 @@ void AS02Track::CompleteWrite()
 
 
 
+    // re-write header to memory
+
+    mMXFFile->seek(0, SEEK_SET);
+    mMXFFile->openMemoryFile(8192);
+    mMXFFile->setMemoryPartitionIndexes(0, 0); // overwriting and updating from header pp
+
+
+    // update and re-write the header partition pack
+
+    Partition &header_partition = mMXFFile->getPartition(0);
+    header_partition.setKey(&MXF_PP_K(ClosedComplete, Header));
+    header_partition.setFooterPartition(footer_partition.getThisPartition());
+    header_partition.write(mMXFFile);
+
+
     // re-write the header metadata in the header partition
 
-    mMXFFile->seek(mHeaderMetadataStartPos, SEEK_SET);
     PositionFillerWriter pos_filler_writer(mHeaderMetadataEndPos);
-    mHeaderMetadata->write(mMXFFile, &mMXFFile->getPartition(0), &pos_filler_writer);
+    mHeaderMetadata->write(mMXFFile, &header_partition, &pos_filler_writer);
 
 
     if (HaveCBEIndexTable()) {
         // update and re-write the CBE index table segment
 
-        mMXFFile->seek(mIndexTableStartPos, SEEK_SET);
+        Partition &index_partition = mMXFFile->getPartition(1);
+        index_partition.setKey(&MXF_PP_K(ClosedComplete, Body));
+        index_partition.setFooterPartition(footer_partition.getThisPartition());
+        index_partition.write(mMXFFile);
+
         WriteCBEIndexTable(&mMXFFile->getPartition(1));
     }
 
+    // update header and index partition packs and flush memory writes to file
 
-    // update and re-write the partition packs
-
-    const std::vector<Partition*> &partitions = mMXFFile->getPartitions();
-    size_t i;
-    for (i = 0; i < partitions.size(); i++) {
-        if (mxf_is_header_partition_pack(partitions[i]->getKey()))
-            partitions[i]->setKey(&MXF_PP_K(ClosedComplete, Header));
-        else if (mxf_is_body_partition_pack(partitions[i]->getKey()))
-            partitions[i]->setKey(&MXF_PP_K(ClosedComplete, Body));
-    }
     mMXFFile->updatePartitions();
+    mMXFFile->closeMemoryFile();
+
+
+    // update and re-write the body partition packs
+
+    mMXFFile->updateBodyPartitions(&MXF_PP_K(ClosedComplete, Body));
 
 
     // done with the file
@@ -393,9 +421,8 @@ void AS02Track::CompleteWrite()
     // finalize checksum and update manifest
     if (mManifestFile->GetMICScope() == ESSENCE_ONLY_MIC_SCOPE) {
         if (mManifestFile->GetMICType() == MD5_MIC_TYPE) {
-            unsigned char digest[16];
-            md5_final(digest, &mEssenceOnlyMD5Context);
-            mManifestFile->SetMIC(MD5_MIC_TYPE, ESSENCE_ONLY_MIC_SCOPE, md5_digest_str(digest));
+            mEssenceOnlyChecksum.Final();
+            mManifestFile->SetMIC(MD5_MIC_TYPE, ESSENCE_ONLY_MIC_SCOPE, mEssenceOnlyChecksum.GetDigestString());
         }
     }
 }
@@ -530,7 +557,7 @@ void AS02Track::WriteCBEIndexTable(Partition *partition)
         mCBEIndexSegment->setBodySID(mBodySID);
         if (mIsPicture) {
             // frame wrapped include KL
-            mCBEIndexSegment->setEditUnitByteCount(mxfKey_extlen + mLLen + mSampleSize);
+            mCBEIndexSegment->setEditUnitByteCount(mxfKey_extlen + mEssenceElementLLen + mSampleSize);
         } else {
             // clip wrapped
             mCBEIndexSegment->setEditUnitByteCount(mSampleSize);
@@ -539,15 +566,14 @@ void AS02Track::WriteCBEIndexTable(Partition *partition)
         mCBEIndexSegment->setIndexDuration(mContainerDuration);
     }
 
-    KAGFillerWriter kag_filler_writer(partition);
-    mCBEIndexSegment->write(mMXFFile, partition, &kag_filler_writer);
+    mCBEIndexSegment->write(mMXFFile, partition, 0);
 }
 
 void AS02Track::UpdateEssenceOnlyChecksum(const unsigned char *data, uint32_t size)
 {
     if (data && size > 0 && mManifestFile->GetMICScope() == ESSENCE_ONLY_MIC_SCOPE) {
         if (mManifestFile->GetMICType() == MD5_MIC_TYPE)
-            md5_update(&mEssenceOnlyMD5Context, data, size);
+            mEssenceOnlyChecksum.Update(data, size);
     }
 }
 
@@ -565,7 +591,11 @@ void AS02Track::CreateHeaderMetadata()
     Identification *ident = new Identification(mHeaderMetadata);
     preface->appendIdentifications(ident);
     ident->initialise(mClip->mCompanyName, mClip->mProductName, mClip->mVersionString, mClip->mProductUID);
-    ident->setProductVersion(mClip->mProductVersion);
+    if (mClip->mProductVersion.major != 0 || mClip->mProductVersion.minor != 0 || mClip->mProductVersion.patch != 0 ||
+        mClip->mProductVersion.build != 0 || mClip->mProductVersion.release != 0)
+    {
+        ident->setProductVersion(mClip->mProductVersion);
+    }
     ident->setModificationDate(mClip->mCreationDate);
     ident->setThisGenerationUID(mClip->mGenerationUID);
 
@@ -723,6 +753,11 @@ void AS02Track::CreateFile()
     mMXFFile->setMinLLen(mLLen);
 
 
+    // write header partition and essence partition pack to memory first
+
+    mMXFFile->openMemoryFile(8192);
+
+
     // write the header partition pack and header metadata
 
     Partition &header_partition = mMXFFile->createPartition();
@@ -734,9 +769,7 @@ void AS02Track::CreateFile()
     header_partition.setOperationalPattern(&MXF_OP_L(1a, UniTrack_Stream_Internal));
     header_partition.addEssenceContainer(GetEssenceContainerUL());
     header_partition.write(mMXFFile);
-    header_partition.fillToKag(mMXFFile);
 
-    mHeaderMetadataStartPos = mMXFFile->tell(); // need this position when we re-write the header metadata
     KAGFillerWriter reserve_filler_writer(&header_partition, mClip->mReserveMinBytes);
     mHeaderMetadata->write(mMXFFile, &header_partition, &reserve_filler_writer);
     mHeaderMetadataEndPos = mMXFFile->tell();  // need this position when we re-write the header metadata
@@ -746,13 +779,11 @@ void AS02Track::CreateFile()
         // write the CBE index partition pack and index table segment
 
         Partition &index_partition = mMXFFile->createPartition();
-        index_partition.setKey(&MXF_PP_K(OpenIncomplete, Body));
+        index_partition.setKey(&MXF_PP_K(OpenComplete, Body));
         index_partition.setIndexSID(mIndexSID);
         index_partition.setBodySID(0);
         index_partition.write(mMXFFile);
-        index_partition.fillToKag(mMXFFile);
 
-        mIndexTableStartPos = mMXFFile->tell(); // need this position when we re-write the index segment
         WriteCBEIndexTable(&index_partition);
     }
 
@@ -760,12 +791,17 @@ void AS02Track::CreateFile()
     // write the essence data partition pack
 
     Partition &ess_partition = mMXFFile->createPartition();
-    ess_partition.setKey(&MXF_PP_K(OpenIncomplete, Body));
+    ess_partition.setKey(&MXF_PP_K(OpenComplete, Body));
     ess_partition.setIndexSID(0);
     ess_partition.setBodySID(mBodySID);
     ess_partition.setBodyOffset(0);
     ess_partition.write(mMXFFile);
-    ess_partition.fillToKag(mMXFFile);
+
+
+    // update partitions and flush memory
+
+    mMXFFile->updatePartitions();
+    mMXFFile->closeMemoryFile();
 
 
     PreSampleWriting();

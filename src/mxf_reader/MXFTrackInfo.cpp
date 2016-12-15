@@ -37,6 +37,7 @@
 
 #include <bmx/BMXTypes.h>
 #include <bmx/mxf_reader/MXFTrackInfo.h>
+#include <bmx/st436/ST436Element.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -48,8 +49,7 @@ using namespace mxfpp;
 
 MXFTrackInfo::MXFTrackInfo()
 {
-    is_picture = false;
-    is_sound = false;
+    data_def = MXF_UNKNOWN_DDEF;
 
     essence_type = UNKNOWN_ESSENCE_TYPE;
     essence_container_label = g_Null_UL;
@@ -72,8 +72,7 @@ bool MXFTrackInfo::IsCompatible(const MXFTrackInfo *right) const
 
 void MXFTrackInfo::Clone(MXFTrackInfo *clone) const
 {
-    clone->is_picture               = is_picture;
-    clone->is_sound                 = is_sound;
+    clone->data_def                 = data_def;
     clone->essence_type             = essence_type;
     clone->essence_container_label  = essence_container_label;
     clone->material_package_uid     = material_package_uid;
@@ -93,7 +92,7 @@ void MXFTrackInfo::Clone(MXFTrackInfo *clone) const
 MXFPictureTrackInfo::MXFPictureTrackInfo()
 : MXFTrackInfo()
 {
-    is_picture = true;
+    data_def = MXF_PICTURE_DDEF;
 
     is_cdci = true;
     picture_essence_coding_label = g_Null_UL;
@@ -102,8 +101,8 @@ MXFPictureTrackInfo::MXFPictureTrackInfo()
     stored_height = 0;
     display_width = 0;
     display_height = 0;
-    display_x_offset = 0;
-    display_y_offset = 0;
+    BMX_OPT_PROP_DEFAULT(display_x_offset, 0);
+    BMX_OPT_PROP_DEFAULT(display_y_offset, 0);
     aspect_ratio = ZERO_RATIONAL;
     frame_layout = 0xff;
     afd = 0;
@@ -111,7 +110,6 @@ MXFPictureTrackInfo::MXFPictureTrackInfo()
     vert_subsampling = 1;
     component_depth = 0;
     color_siting = MXF_COLOR_SITING_UNKNOWN;
-    d10_frame_size = 0;
     have_avci_header = false;
 };
 
@@ -139,7 +137,6 @@ bool MXFPictureTrackInfo::IsCompatible(const MXFTrackInfo *right) const
                 horiz_subsampling        == picture_right->horiz_subsampling &&
                 vert_subsampling         == picture_right->vert_subsampling &&
                 color_siting             == picture_right->color_siting &&
-                d10_frame_size           == picture_right->d10_frame_size &&
                 have_avci_header         == picture_right->have_avci_header));
 }
 
@@ -156,8 +153,8 @@ MXFTrackInfo* MXFPictureTrackInfo::Clone() const
     clone->stored_height                 = stored_height;
     clone->display_width                 = display_width;
     clone->display_height                = display_height;
-    clone->display_x_offset              = display_x_offset;
-    clone->display_y_offset              = display_y_offset;
+    BMX_OPT_PROP_COPY(clone->display_x_offset, display_x_offset);
+    BMX_OPT_PROP_COPY(clone->display_y_offset, display_y_offset);
     clone->aspect_ratio                  = aspect_ratio;
     clone->frame_layout                  = frame_layout;
     clone->afd                           = afd;
@@ -165,7 +162,6 @@ MXFTrackInfo* MXFPictureTrackInfo::Clone() const
     clone->vert_subsampling              = vert_subsampling;
     clone->component_depth               = component_depth;
     clone->color_siting                  = color_siting;
-    clone->d10_frame_size                = d10_frame_size;
     clone->have_avci_header              = have_avci_header;
 
     return clone;
@@ -176,20 +172,18 @@ MXFTrackInfo* MXFPictureTrackInfo::Clone() const
 MXFSoundTrackInfo::MXFSoundTrackInfo()
 : MXFTrackInfo()
 {
-    is_sound = true;
+    data_def = MXF_SOUND_DDEF;
 
     sampling_rate = ZERO_RATIONAL;
     bits_per_sample = 0;
     block_align = 0;
     channel_count = 0;
     sequence_offset = 0;
-    locked = false;
-    locked_set = false;
-    audio_ref_level = 0;
-    audio_ref_level_set = false;
-    dial_norm = 0;
-    dial_norm_set = false;
+    BMX_OPT_PROP_DEFAULT(locked, false);
+    BMX_OPT_PROP_DEFAULT(audio_ref_level, 0);
+    BMX_OPT_PROP_DEFAULT(dial_norm, 0);
     d10_aes3_valid_flags = 0;
+    channel_assignment = g_Null_UL;
 }
 
 bool MXFSoundTrackInfo::IsCompatible(const MXFTrackInfo *right) const
@@ -204,9 +198,9 @@ bool MXFSoundTrackInfo::IsCompatible(const MXFTrackInfo *right) const
            block_align          == sound_right->block_align &&
            channel_count        == sound_right->channel_count &&
            d10_aes3_valid_flags == sound_right->d10_aes3_valid_flags &&
-           sequence_offset      == sound_right->sequence_offset;
+           sequence_offset      == sound_right->sequence_offset &&
+           channel_assignment   == sound_right->channel_assignment;
 }
-
 
 MXFTrackInfo* MXFSoundTrackInfo::Clone() const
 {
@@ -220,13 +214,156 @@ MXFTrackInfo* MXFSoundTrackInfo::Clone() const
     clone->channel_count        = channel_count;
     clone->d10_aes3_valid_flags = d10_aes3_valid_flags;
     clone->sequence_offset      = sequence_offset;
-    clone->locked               = locked;
-    clone->locked_set           = locked_set;
-    clone->audio_ref_level      = audio_ref_level;
-    clone->audio_ref_level_set  = audio_ref_level_set;
-    clone->dial_norm            = dial_norm;
-    clone->dial_norm_set        = dial_norm_set;
+    BMX_OPT_PROP_COPY(clone->locked,          locked);
+    BMX_OPT_PROP_COPY(clone->audio_ref_level, audio_ref_level);
+    BMX_OPT_PROP_COPY(clone->dial_norm,       dial_norm);
+    clone->channel_assignment   = channel_assignment;
+
+    size_t i;
+    for (i = 0; i < mca_labels.size(); i++)
+      clone->mca_labels.push_back(mca_labels[i]);
 
     return clone;
+}
+
+
+
+VBIManifestElement::VBIManifestElement()
+{
+    line_number = 0;
+    wrapping_type = 0;
+    sample_coding = 0;
+}
+
+void VBIManifestElement::Parse(const ST436Line *line)
+{
+    BMX_CHECK(line->is_vbi);
+
+    line_number   = line->line_number;
+    wrapping_type = line->wrapping_type;
+    sample_coding = line->payload_sample_coding;
+}
+
+bool VBIManifestElement::operator==(const VBIManifestElement &right) const
+{
+    return line_number   == right.line_number &&
+           wrapping_type == right.wrapping_type &&
+           sample_coding == right.sample_coding;
+}
+
+
+
+ANCManifestElement::ANCManifestElement()
+{
+    line_number = 0;
+    wrapping_type = 0;
+    sample_coding = 0;
+    did = 0;
+    sdid = 0;
+}
+
+void ANCManifestElement::Parse(const ST436Line *line)
+{
+    BMX_CHECK(!line->is_vbi);
+
+    line_number   = line->line_number;
+    wrapping_type = line->wrapping_type;
+    sample_coding = line->payload_sample_coding;
+    did           = 0;
+    sdid          = 0;
+
+    if (line->payload_sample_coding == ANC_8_BIT_COMP_LUMA ||
+        line->payload_sample_coding == ANC_8_BIT_COMP_COLOR ||
+        line->payload_sample_coding == ANC_8_BIT_COMP_LUMA_COLOR ||
+        line->payload_sample_coding == ANC_8_BIT_COMP_LUMA_ERROR ||
+        line->payload_sample_coding == ANC_8_BIT_COMP_COLOR_ERROR ||
+        line->payload_sample_coding == ANC_8_BIT_COMP_LUMA_COLOR_ERROR)
+    {
+        if (line->payload_size > 0) {
+            did = line->payload_data[0];
+            if (did && line->payload_size > 1)
+                sdid = line->payload_data[1];
+        }
+    }
+    else if (line->payload_sample_coding == ANC_10_BIT_COMP_LUMA ||
+             line->payload_sample_coding == ANC_10_BIT_COMP_COLOR ||
+             line->payload_sample_coding == ANC_10_BIT_COMP_LUMA_COLOR)
+    {
+        // 8-bit ANC packet coding contains _lower-order_ 8 bits of 10-bit samples
+        // the parity and inverted parity high-order bits are lost
+        if (line->payload_size > 1) {
+            did = ((line->payload_data[0] & 0x3f) << 2) |
+                  ((line->payload_data[1] & 0xc0) >> 6);
+            if (did && line->payload_size > 2) {
+                sdid = ((line->payload_data[1] & 0x0f) << 4) |
+                       ((line->payload_data[2] & 0xf0) >> 4);
+            }
+        }
+    }
+    else
+    {
+        log_debug("Unsupported sample coding %u for ANC data manifest extraction\n",
+                  line->payload_sample_coding);
+    }
+}
+
+bool ANCManifestElement::operator==(const ANCManifestElement &right) const
+{
+    return line_number   == right.line_number &&
+           wrapping_type == right.wrapping_type &&
+           sample_coding == right.sample_coding &&
+           did           == right.did &&
+           sdid          == right.sdid;
+}
+
+
+
+MXFDataTrackInfo::MXFDataTrackInfo()
+: MXFTrackInfo()
+{
+    data_def = MXF_DATA_DDEF;
+}
+
+bool MXFDataTrackInfo::IsCompatible(const MXFTrackInfo *right) const
+{
+    const MXFDataTrackInfo *data_right = dynamic_cast<const MXFDataTrackInfo*>(right);
+    if (!data_right)
+        return false;
+
+    return MXFTrackInfo::IsCompatible(right);
+}
+
+MXFTrackInfo* MXFDataTrackInfo::Clone() const
+{
+    MXFDataTrackInfo *clone = new MXFDataTrackInfo();
+
+    MXFTrackInfo::Clone(clone);
+
+    clone->vbi_manifest.assign(vbi_manifest.begin(), vbi_manifest.end());
+    clone->anc_manifest.assign(anc_manifest.begin(), anc_manifest.end());
+
+    return clone;
+}
+
+void MXFDataTrackInfo::AppendUniqueVBIElement(const VBIManifestElement &element)
+{
+    size_t i;
+    for (i = 0; i < vbi_manifest.size(); i++) {
+        if (vbi_manifest[i] == element)
+            return;
+    }
+
+    vbi_manifest.push_back(element);
+}
+
+void MXFDataTrackInfo::AppendUniqueANCElement(const ANCManifestElement &element)
+{
+    size_t i;
+    for (i = 0; i < anc_manifest.size(); i++) {
+        if (anc_manifest[i] == element)
+            return;
+    }
+
+    anc_manifest.push_back(element);
 }
 

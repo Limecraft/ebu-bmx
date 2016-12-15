@@ -56,7 +56,7 @@ typedef struct
     int32_t video_line_map[2];
     uint32_t stored_width;
     uint32_t stored_height;
-    uint32_t display_y_offset;
+    int32_t display_y_offset;
     uint8_t frame_layout;
 } SupportedEssence;
 
@@ -91,7 +91,7 @@ EssenceType MJPEGMXFDescriptorHelper::IsSupported(FileDescriptor *file_descripto
         return UNKNOWN_ESSENCE_TYPE;
     }
 
-    mxfRational sample_rate = file_descriptor->getSampleRate();
+    mxfRational sample_rate = normalize_rate(file_descriptor->getSampleRate());
 
     GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
     if (!pic_descriptor || !pic_descriptor->havePictureEssenceCoding())
@@ -99,7 +99,7 @@ EssenceType MJPEGMXFDescriptorHelper::IsSupported(FileDescriptor *file_descripto
 
     mxfUL pc_label = pic_descriptor->getPictureEssenceCoding();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (mxf_equals_ul_mod_regver(&pc_label, &SUPPORTED_ESSENCE[i].pc_label)) {
             BMX_CHECK(SUPPORTED_ESSENCE[i].sample_rate == sample_rate);
             return SUPPORTED_ESSENCE[i].essence_type;
@@ -112,7 +112,7 @@ EssenceType MJPEGMXFDescriptorHelper::IsSupported(FileDescriptor *file_descripto
 bool MJPEGMXFDescriptorHelper::IsSupported(EssenceType essence_type)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (essence_type == SUPPORTED_ESSENCE[i].essence_type)
             return true;
     }
@@ -143,7 +143,7 @@ void MJPEGMXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uint1
     GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
     mxfUL pc_label = pic_descriptor->getPictureEssenceCoding();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (mxf_equals_ul_mod_regver(&pc_label, &SUPPORTED_ESSENCE[i].pc_label)) {
             mEssenceIndex = i;
             mEssenceType = SUPPORTED_ESSENCE[i].essence_type;
@@ -199,12 +199,12 @@ void MJPEGMXFDescriptorHelper::UpdateFileDescriptor()
     cdci_descriptor->setPictureEssenceCoding(SUPPORTED_ESSENCE[mEssenceIndex].pc_label);
     cdci_descriptor->setSignalStandard(MXF_SIGNAL_STANDARD_ITU601);
     cdci_descriptor->setFrameLayout(SUPPORTED_ESSENCE[mEssenceIndex].frame_layout);
-    SetColorSiting(MXF_COLOR_SITING_REC601);
+    SetColorSitingMod(MXF_COLOR_SITING_REC601);
     cdci_descriptor->setComponentDepth(8);
     cdci_descriptor->setBlackRefLevel(16);
     cdci_descriptor->setWhiteReflevel(235);
     cdci_descriptor->setColorRange(225);
-    SetCodingEquations(ITUR_BT601_CODING_EQ);
+    SetCodingEquationsMod(ITUR_BT601_CODING_EQ);
     cdci_descriptor->setStoredWidth(SUPPORTED_ESSENCE[mEssenceIndex].stored_width);
     cdci_descriptor->setStoredHeight(SUPPORTED_ESSENCE[mEssenceIndex].stored_height);
     cdci_descriptor->setDisplayWidth(cdci_descriptor->getStoredWidth());
@@ -213,6 +213,8 @@ void MJPEGMXFDescriptorHelper::UpdateFileDescriptor()
     cdci_descriptor->setSampledHeight(cdci_descriptor->getStoredHeight());
     cdci_descriptor->setDisplayYOffset(SUPPORTED_ESSENCE[mEssenceIndex].display_y_offset);
     cdci_descriptor->setDisplayXOffset(0);
+    cdci_descriptor->setSampledXOffset(0);
+    cdci_descriptor->setSampledYOffset(0);
     cdci_descriptor->appendVideoLineMap(SUPPORTED_ESSENCE[mEssenceIndex].video_line_map[0]);
     if (SUPPORTED_ESSENCE[mEssenceIndex].video_line_map[1])
         cdci_descriptor->appendVideoLineMap(SUPPORTED_ESSENCE[mEssenceIndex].video_line_map[1]);
@@ -236,7 +238,7 @@ mxfUL MJPEGMXFDescriptorHelper::ChooseEssenceContainerUL() const
 void MJPEGMXFDescriptorHelper::UpdateEssenceIndex()
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (SUPPORTED_ESSENCE[i].essence_type == mEssenceType &&
             SUPPORTED_ESSENCE[i].sample_rate == mSampleRate)
         {
@@ -245,6 +247,6 @@ void MJPEGMXFDescriptorHelper::UpdateEssenceIndex()
             break;
         }
     }
-    BMX_CHECK(i < ARRAY_SIZE(SUPPORTED_ESSENCE));
+    BMX_CHECK(i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE));
 }
 

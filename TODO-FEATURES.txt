@@ -4,23 +4,11 @@ bmx TODO Features
 (list is in no particular order)
 
 
-1. add support for general purpose user and application tags, similar to
-AAF/Avid TaggedValues
-
-2. add support for reading MXF files that have no index table
-
-3. add support for KLV raw essence input. This allows MXF files to be
-treated as raw essence, e.g. is useful if it doesn't have an index table
-
 4. add support for edit-while-record Avid MXF flavour
-
-5. add OP label info to mxf2raw -i output
 
 7. add essence group detection (e.g. DV, MPEG-2, MJPEG, VC3) to provide more
 info than "unknown essence". Supports apps where specific essence type
 info is not required, e.g. FFmpeg decoder
-
-8. determine clip/frame wrapping type by analyzing the file structure
 
 9. read and display material package timecode in avidmxfinfo
 
@@ -31,12 +19,7 @@ Setting output track numbers is currently supported, but not setting track ids.
 packages. Particulary useful if need to match the ids from an existing source
 package when supporting Avid source file relinking
 
-12. h264dump: remove need to buffer the complete NAL unit. This will also serve
-to help start implementing a parser in the bmx library
-
 13. implement more complete h264 / AVCI essence parser in bmx library
-
-14. need to investigate whether Avid supports multiple marks per position
 
 15. might be worth raising the gcc warning level to catch potential errors and
 catch warnings that Visual C++ would emit
@@ -47,12 +30,8 @@ tests
 
 17. implement setting track number in the Wave writer
 
-18. add support for multi-channel raw pcm input in raw2bmx
-
 19. add option to disable audio inputs, or more generally, add ability to map
 audio inputs to audio outputs
-
-20. add support for clip-wrapped audio in the OP-1A writer
 
 21. investigate I/O performance for frame wrapped essence reading. Might be
 better to read a content package in a single read
@@ -69,13 +48,7 @@ chars.
 25. investigate improving / cleaning-up libMXF file structure, particularly to
 help writing wrappers
 
-26. use the memory file output in more writers to ensure external readers
-always see complete header partitions
-
 27. factorize common code in bmxtranswrap and raw2bmx
-
-28. add frame rate information to the Frame class so that the positions / num
-samples can be interpreted correctly with local information
 
 29. add requested num samples for Frame class so that client knows that
 there are less samples than requested without having to remember this elsewhere
@@ -86,7 +59,8 @@ other tests
 31. add Avid uncompressed 10-bit / v210 / 16-bit YUV / v216 conversion
 functions
 
-32. optimize index table reading to avoid realloc and use linked list instead
+32. optimize index table creation (e.g. OP1AIndexTable) to avoid realloc and
+use a linked list for example
 
 33. add option to set the start timecode in the OP-1A file source package. The
 material package start timecode could default to the file source package
@@ -116,8 +90,83 @@ example
 
 44. allow partition selection in MXFReader and mxf2raw
 
-45. support reading growing MXF files
-
-46. add support for Sony XDCAM OP-1A flavour
-
 47. add support for an OP-1A flavour that is Avid AMA link compatible
+
+48. create common ClipReader class and restructure MXFReader to subclass it
+    and create a raw essence clip reader.
+
+49. combine bmxtranswrap and raw2bmx into one utility that uses the ClipReader
+    class
+
+50. change ClipWriter from a wrapper to a interface super class and sub classes.
+    This will allow other ClipWriters to be added without having to modify the
+    ClipWriter class
+
+51. add support for ClipWriter and ClipReader plugins
+
+52. create a generalised data buffer structure that supports fragmented byte
+    arrays. Add methods to get and set data and avoid requiring access to a
+    non-fragmented byte array. This will avoid several memory copies which is
+    useful in applications where the performance is CPU bound rather than disk
+    bound
+
+53. Support clip wrapped WAVE PCM files with no index table and varying number
+    of samples per edit unit
+
+54. Support clip wrapped files with no index table and varying edit units size.
+    Use available essence parsers
+
+55. Support sparse index tables
+
+56. Support incomplete / growing clip wrapped essence files
+
+57. Support incomplete / growing last segment in clip sequence reader
+
+58. Investigate different ways to set read limits and to supports tracks with
+    different durations / precharge / rollout / origins. Maybe default to all
+    available essence data when start and duration not specified.
+
+59. Support --start and --dur in apps when input file is incomplete / growing
+
+61. Simplify test shell scripts
+
+62. Add support for metadata to package metadata set in RDD9 writer, e.g. UMID
+    and essence marks
+
+63. Add more built-in Panasonic AVCI SPS+PPS variations and maybe create them
+    using code rather than including chunks of bytes in the library
+
+64. Improve logic around selecting sequence and group reading
+
+66. Add options to disable some or all essence tracks
+
+67. Support for separate metadata tracks containing metadata extracted from
+    the essence container, e.g. System Item UMID, timecodes, timestamps, marks.
+    Possibly only enable this feature when requested.
+
+68. Support setting the output audio layout, e.g. single channel per track, all
+    channels in 1 track, 2 channels per track.
+
+69. Support selecting audio routing from input track/channel to output
+    track/channel and setting mute/invalid output channels
+
+71. Support incomplete files piped through stdin. The MXF reader tries to seek
+    back when it reaches the (incomplete) end and this throws an exception for
+    stdin. It should fail gracefully instead.
+
+72. Support stdout outputs in raw2bmx and bmxtranswrap
+
+73. Set errno in MXF file I/O structure functions. This would allow the exact
+    error to be surfaced higher up the chain (e.g. in exception messages) and
+    avoid having to log the exact cause in the file I/O layer or losing the
+    exact cause.
+
+74. Add KLV essence parser to raw essence reader to support variable size ANC
+    data wrapped in KLV in raw2bmx
+
+75. Allow that same file to be concatenated, i.e. ignore grouping based on
+    package identifiers and add option to mxf2raw and bmxtranswrap
+
+76. Use variadic macros for logging
+
+78. Add ANC/VBI support to AS-02 and Avid OP-Atom

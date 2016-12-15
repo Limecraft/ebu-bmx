@@ -29,7 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* Note: defines are undefined at the end of the file */
+/* Note: defines are undefined at the end of the file, unless KEEP_DATA_MODEL_DEFS defined */
 
 
 #if !defined (MXF_BASIC_TYPE_DEF)
@@ -148,21 +148,21 @@ MXF_SET_DEFINITION(DMFramework, UKDPPFramework,
         0
     );
 
-    MXF_ITEM_DEFINITION(UKDPPFramework, UKDPPFPAPass,
+    MXF_ITEM_DEFINITION(UKDPPFramework, UKDPPPSEPass,
         MXF_LABEL(0x06, 0x0e, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x0d, 0x0c, 0x01, 0x01, 0x01, 0x01, 0x0d, 0x00),
         0x0000,
         MXF_UINT8_TYPE,
-        0
+        1
     );
 
-    MXF_ITEM_DEFINITION(UKDPPFramework, UKDPPFPAManufacturer,
+    MXF_ITEM_DEFINITION(UKDPPFramework, UKDPPPSEManufacturer,
         MXF_LABEL(0x06, 0x0e, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x0d, 0x0c, 0x01, 0x01, 0x01, 0x01, 0x0e, 0x00),
         0x0000,
         MXF_UTF16STRING_TYPE,
         0
     );
 
-    MXF_ITEM_DEFINITION(UKDPPFramework, UKDPPFPAVersion,
+    MXF_ITEM_DEFINITION(UKDPPFramework, UKDPPPSEVersion,
         MXF_LABEL(0x06, 0x0e, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x0d, 0x0c, 0x01, 0x01, 0x01, 0x01, 0x0f, 0x00),
         0x0000,
         MXF_UTF16STRING_TYPE,
@@ -325,6 +325,7 @@ MXF_SET_DEFINITION(DMFramework, UKDPPFramework,
 
 
 
+#if !defined(KEEP_DATA_MODEL_DEFS)
 #undef MXF_BASIC_TYPE_DEF
 #undef MXF_ARRAY_TYPE_DEF
 #undef MXF_COMPOUND_TYPE_DEF
@@ -333,4 +334,5 @@ MXF_SET_DEFINITION(DMFramework, UKDPPFramework,
 #undef MXF_LABEL
 #undef MXF_SET_DEFINITION
 #undef MXF_ITEM_DEFINITION
+#endif
 

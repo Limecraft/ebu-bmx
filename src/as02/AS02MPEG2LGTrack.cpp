@@ -108,7 +108,7 @@ void AS02MPEG2LGTrack::WriteSamples(const unsigned char *data, uint32_t size, ui
 
     HandlePartitionInterval(mWriterHelper.HaveGOPHeader());
 
-    mMXFFile->writeFixedKL(&mEssenceElementKey, mLLen, size);
+    mMXFFile->writeFixedKL(&mEssenceElementKey, mEssenceElementLLen, size);
     BMX_CHECK(mMXFFile->write(data, size) == size);
 
     UpdateEssenceOnlyChecksum(data, size);
@@ -135,7 +135,7 @@ void AS02MPEG2LGTrack::WriteSamples(const unsigned char *data, uint32_t size, ui
 
 
     mContainerDuration++;
-    mContainerSize += mxfKey_extlen + mLLen + size;
+    mContainerSize += mxfKey_extlen + mEssenceElementLLen + size;
 }
 
 void AS02MPEG2LGTrack::WriteVBEIndexTable(Partition *partition)
@@ -143,7 +143,6 @@ void AS02MPEG2LGTrack::WriteVBEIndexTable(Partition *partition)
     if (mIndexSegments.empty())
         return;
 
-    KAGFillerWriter kag_filler_writer(partition);
     partition->markIndexStart(mMXFFile);
 
     IndexTableSegment segment;
@@ -178,13 +177,13 @@ void AS02MPEG2LGTrack::WriteVBEIndexTable(Partition *partition)
 
     mIndexStartPosition = index_start_position;
 
-    kag_filler_writer.write(mMXFFile);
+    partition->fillToKag(mMXFFile);
     partition->markIndexEnd(mMXFFile);
 }
 
 void AS02MPEG2LGTrack::PostSampleWriting(mxfpp::Partition *partition)
 {
-    (void)partition;
+    AS02PictureTrack::PostSampleWriting(partition);
 
     if (!mWriterHelper.CheckTemporalOffsetsComplete(mOutputEndOffset))
         log_warn("Incomplete MPEG-2 temporal offset data in index table\n");
@@ -199,8 +198,8 @@ void AS02MPEG2LGTrack::PostSampleWriting(mxfpp::Partition *partition)
     mpeg_descriptor->setIdenticalGOP(mWriterHelper.GetIdenticalGOP());
     if (mWriterHelper.GetMaxGOP() > 0)
         mpeg_descriptor->setMaxGOP(mWriterHelper.GetMaxGOP());
-    if (mWriterHelper.GetBPictureCount() > 0)
-        mpeg_descriptor->setBPictureCount(mWriterHelper.GetBPictureCount());
+    if (mWriterHelper.GetMaxBPictureCount() > 0)
+        mpeg_descriptor->setMaxBPictureCount(mWriterHelper.GetMaxBPictureCount());
     if (mWriterHelper.GetBitRate() > 0)
         mpeg_descriptor->setBitRate(mWriterHelper.GetBitRate());
 }

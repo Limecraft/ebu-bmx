@@ -54,6 +54,7 @@ AS02AVCITrack::AS02AVCITrack(AS02Clip *clip, uint32_t track_index, EssenceType e
 {
     mAVCIDescriptorHelper = dynamic_cast<AVCIMXFDescriptorHelper*>(mDescriptorHelper);
     BMX_ASSERT(mAVCIDescriptorHelper);
+    mWriterHelper.SetDescriptorHelper(mAVCIDescriptorHelper);
 
     mWriterHelper.SetMode(AVCI_ALL_FRAME_HEADER_MODE);
     mFirstFrameHeaderOnly = false;
@@ -98,6 +99,11 @@ uint32_t AS02AVCITrack::GetSampleWithoutHeaderSize()
     return mAVCIDescriptorHelper->GetSampleWithoutHeaderSize();
 }
 
+void AS02AVCITrack::SetUseAVCSubDescriptor(bool enable)
+{
+    mAVCIDescriptorHelper->SetUseAVCSubDescriptor(enable);
+}
+
 void AS02AVCITrack::WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples)
 {
     BMX_ASSERT(mMXFFile);
@@ -119,7 +125,7 @@ void AS02AVCITrack::WriteSamples(const unsigned char *data, uint32_t size, uint3
     for (i = 0; i < num_samples; i++) {
         write_sample_size = mWriterHelper.ProcessFrame(sample_data, sample_size, &data_array, &array_size);
 
-        mMXFFile->writeFixedKL(&mEssenceElementKey, mLLen, write_sample_size);
+        mMXFFile->writeFixedKL(&mEssenceElementKey, mEssenceElementLLen, write_sample_size);
         for (j = 0; j < array_size; j++) {
             BMX_CHECK(mMXFFile->write(data_array[j].data, data_array[j].size) == data_array[j].size);
             UpdateEssenceOnlyChecksum(data_array[j].data, data_array[j].size);
@@ -130,7 +136,7 @@ void AS02AVCITrack::WriteSamples(const unsigned char *data, uint32_t size, uint3
 
         sample_data += sample_size;
         mContainerDuration++;
-        mContainerSize += mxfKey_extlen + mLLen + write_sample_size;
+        mContainerSize += mxfKey_extlen + mEssenceElementLLen + write_sample_size;
     }
 }
 
@@ -147,7 +153,7 @@ void AS02AVCITrack::WriteCBEIndexTable(Partition *partition)
         mIndexSegment1->setIndexDuration(0); // will be updated when writing is completed (2nd WriteIndexTable() call)
         mIndexSegment1->setIndexSID(mIndexSID);
         mIndexSegment1->setBodySID(mBodySID);
-        mIndexSegment1->setEditUnitByteCount(mxfKey_extlen + mLLen + GetSampleSize());
+        mIndexSegment1->setEditUnitByteCount(mxfKey_extlen + mEssenceElementLLen + GetSampleSize());
     } else {
         if (mFirstFrameHeaderOnly) {
             // index table segment pair
@@ -164,7 +170,7 @@ void AS02AVCITrack::WriteCBEIndexTable(Partition *partition)
             mIndexSegment2->setIndexDuration(mContainerDuration - 1);
             mIndexSegment2->setIndexSID(mIndexSID);
             mIndexSegment2->setBodySID(mBodySID);
-            mIndexSegment2->setEditUnitByteCount(mxfKey_extlen + mLLen + GetSampleWithoutHeaderSize());
+            mIndexSegment2->setEditUnitByteCount(mxfKey_extlen + mEssenceElementLLen + GetSampleWithoutHeaderSize());
         } else {
             // single index table segment
 
@@ -197,3 +203,9 @@ void AS02AVCITrack::WriteCBEIndexTable(Partition *partition)
     partition->markIndexEnd(mMXFFile);
 }
 
+void AS02AVCITrack::PostSampleWriting(mxfpp::Partition *partition)
+{
+    AS02PictureTrack::PostSampleWriting(partition);
+
+    mWriterHelper.CompleteProcess();
+}

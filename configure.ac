@@ -25,8 +25,11 @@ AC_CONFIG_SRCDIR([src/common/BMXException.cpp])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([-Wall -Werror])
-m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+AM_INIT_AUTOMAKE([1.11 -Wall parallel-tests])
+AM_SILENT_RULES([yes])
+
+dnl define for automake 1.12 to avoid warnings
+m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 
 
 dnl-----------------------------------------------------------------------------
@@ -38,7 +41,7 @@ dnl - library source changed -> increment REVISION
 dnl - interfaces added/removed/changed -> increment CURRENT, REVISION = 0
 dnl - interfaces added -> increment AGE
 dnl - interfaces removed -> AGE = 0
-BMX_LIBVERSION="3:0:0"
+BMX_LIBVERSION="4:0:0"
 AC_SUBST(BMX_LIBVERSION)
 
 
@@ -55,11 +58,6 @@ AC_PROG_CXX
 AC_PROG_CC
 AC_PROG_INSTALL
 
-AC_CHECK_PROGS(MD5TOOL, [md5sum md5])
-if test x"$MD5TOOL" = x"" ; then
-	AC_MSG_WARN(Missing md5sum/md5 tool. Cannot make check.)
-fi
-
 
 dnl-----------------------------------------------------------------------------
 dnl -- Checks for libraries.
@@ -68,6 +66,14 @@ dnl-----------------------------------------------------------------------------
 ORIGCFLAGS=$CFLAGS
 if test x"$prefix" != x"NONE"; then
 	CFLAGS="${CFLAGS} -L${prefix}/lib -I${prefix}/include"
+fi
+
+dnl check for clock_gettime
+AC_CHECK_LIB(rt, clock_gettime, have_clock_gettime=yes)
+if test x$have_clock_gettime = xyes ; then
+	AC_DEFINE(HAVE_CLOCK_GETTIME, 1,
+			  [Define to 1 if you have librt and the `clock_gettime' function])
+	RT_LIB=-lrt
 fi
 
 dnl Check for UUID generation library
@@ -114,6 +120,17 @@ AC_COMPILE_IFELSE([AC_LANG_SOURCE([
 #endif
 ])],,[AC_MSG_ERROR([uriparser 0.7.2 or later is required, your copy is too old])])
 
+
+AC_CHECK_LIB(expat, XML_GetFeatureList,
+		EXPAT_LIBS="-lexpat",
+		AC_MSG_ERROR([Require expat library]))
+AC_CHECK_HEADERS(expat.h,
+		EXPAT_CFLAGS="",
+		AC_MSG_ERROR([Require expat development header files]))
+AC_SUBST(EXPAT_CFLAGS)
+AC_SUBST(EXPAT_LIBS)
+
+
 CFLAGS=$ORIGCFLAGS
 
 
@@ -133,6 +150,32 @@ AC_SUBST(LIBMXF_LIBS)
 PKG_CHECK_MODULES(LIBMXFPP, libMXF++-${LIBMXFPP_MAJORMINOR} >= 1.0.3)
 AC_SUBST(LIBMXFPP_CFLAGS)
 AC_SUBST(LIBMXFPP_LIBS)
+
+AC_ARG_WITH(curl,
+	AC_HELP_STRING([--with-curl],
+		[support HTTP file access using libcurl [default=check]]),
+	with_curl=no,
+	with_curl=check)
+if test x"$with_curl" == xcheck; then
+	LIBCURL_VER="7.22.0"
+	PKG_CHECK_MODULES(LIBCURL, libcurl >= $LIBCURL_VER, HAVE_LIBCURL=yes, HAVE_LIBCURL=no)
+	if test "x${HAVE_LIBCURL}" == xyes; then
+		AC_DEFINE([HAVE_LIBCURL], [1], [Define if you have the libcurl library])
+	else
+		AC_MSG_WARN([Disabled HTTP file access because libcurl >= $LIBCURL_VER not found])
+	fi
+fi
+
+AC_ARG_ENABLE(bbcarch_check,
+	AC_HELP_STRING([--enable-bbcarch-check],
+		[enable checking BBC archive MXF [[default=no]]]),
+	enable_bbcarch_check=$enableval,
+	enable_bbcarch_check="no")
+if test x"$enable_bbcarch_check" = xyes; then
+	AC_CHECK_LIB(writearchivemxf-${LIBMXF_MAJORMINOR},prepare_archive_mxf_file,,
+		[AC_MSG_ERROR([writearchivemxf-${LIBMXF_MAJORMINOR} not found])])
+fi
+AM_CONDITIONAL(ENABLE_BBCARCH_CHECK, test x"$enable_bbcarch_check" = xyes)
 
 
 dnl-----------------------------------------------------------------------------
@@ -173,7 +216,7 @@ AC_SYS_LARGEFILE
 AC_FUNC_FSEEKO
 
 
-AC_CHECK_FUNCS([getcwd gettimeofday memmove memset mkdir strerror])
+AC_CHECK_FUNCS([getcwd gettimeofday memmove memset mkdir strerror strerror_r nanosleep gmtime_r])
 
 
 dnl-----------------------------------------------------------------------------
@@ -181,21 +224,24 @@ dnl -- Compiler flags etc.
 dnl-----------------------------------------------------------------------------
 
 WARN_CFLAGS=
-if test x"$GCC" = xyes; then
-	WARN_CFLAGS="-W -Wall"
-fi
+AC_APPEND_SUPPORTED_CFLAGS(WARN_CFLAGS, [-W -Wall])
 AC_SUBST(WARN_CFLAGS)
 
 BMX_CFLAGS="${WARN_CFLAGS} ${LIBMXF_CFLAGS} ${LIBMXFPP_CFLAGS} \
-	${LIBURIPARSER_CFLAGS} -I\$(top_srcdir)/include"
+	${LIBURIPARSER_CFLAGS} ${EXPAT_CFLAGS} ${LIBCURL_CFLAGS} -I\$(top_srcdir)/include"
 AC_SUBST(BMX_CFLAGS)
 
-BMX_LIBADDLIBS="${UUIDLIB} ${LIBURIPARSER_LIBS} ${LIBMXF_LIBS} ${LIBMXFPP_LIBS}"
+BMX_LIBADDLIBS="-lm ${RT_LIB} ${UUIDLIB} ${LIBURIPARSER_LIBS} ${LIBMXF_LIBS} \
+	${LIBMXFPP_LIBS} ${EXPAT_LIBS} ${LIBCURL_LIBS}"
 AC_SUBST(BMX_LIBADDLIBS)
 
 BMX_LDADDLIBS="${BMX_LIBADDLIBS} \
 	\$(top_builddir)/src/libbmx-${BMX_MAJORMINOR}.la"
 AC_SUBST(BMX_LDADDLIBS)
+
+BMX_LDFLAGS=
+AC_APPEND_SUPPORTED_LDFLAGS(BMX_LDFLAGS, [-Wl,--no-undefined])
+AC_SUBST(BMX_LDFLAGS)
 
 
 dnl-----------------------------------------------------------------------------
@@ -208,9 +254,9 @@ AC_SUBST(pkgconfigdir)
 dnl add libraries to pkg config "Libs:" for static-only builds
 if test x"$enable_shared" = xyes; then
 	PC_ADD_LIBS=
-	PC_ADD_PRIVATE_LIBS="${UUIDLIB} ${LIBURIPARSER_LIBS}"
+	PC_ADD_PRIVATE_LIBS="-lm ${RT_LIB} ${UUIDLIB} ${LIBURIPARSER_LIBS} ${EXPAT_LIBS}"
 else
-	PC_ADD_LIBS="${UUIDLIB} ${LIBURIPARSER_LIBS}"
+	PC_ADD_LIBS="-lm ${RT_LIB} ${UUIDLIB} ${LIBURIPARSER_LIBS} ${EXPAT_LIBS}"
 	PC_ADD_PRIVATE_LIBS=
 fi
 AC_SUBST(PC_ADD_LIBS)
@@ -225,6 +271,7 @@ AC_CONFIG_FILES([
 	Makefile
 	include/Makefile
 	src/Makefile
+	src/apps/Makefile
 	src/common/Makefile
 	src/frame/Makefile
 	src/essence_parser/Makefile
@@ -236,25 +283,44 @@ AC_CONFIG_FILES([
 	src/avid_mxf/Makefile
 	src/d10_mxf/Makefile
 	src/as11/Makefile
+	src/as10/Makefile
+	src/rdd9_mxf/Makefile
 	src/wave/Makefile
 	src/clip_writer/Makefile
+	src/st436/Makefile
 	test/Makefile
+	test/ard_zdf_hdf/Makefile
 	test/as02/Makefile
+	test/as10/Makefile
 	test/as11/Makefile
+	test/bmxtranswrap/Makefile
+	test/mca/Makefile
+	test/misc/Makefile
 	test/mxf_op1a/Makefile
 	test/avid_mxf/Makefile
 	test/mxf_reader/Makefile
 	test/d10_mxf/Makefile
+	test/rdd9_mxf/Makefile
 	test/wave/Makefile
-	test/essence_parser/Makefile
+	test/growing_file/Makefile
+	test/rdd6/Makefile
+	test/text_object/Makefile
+	test/bbcarchive/Makefile
 	apps/Makefile
 	apps/mxf2raw/Makefile
+	apps/writers/Makefile
 	apps/raw2bmx/Makefile
 	apps/bmxtranswrap/Makefile
+	apps/bmxparse/Makefile
 	tools/Makefile
 	msvc_build/Makefile
-	msvc_build/vs8/Makefile
-    bmx.pc])
+	msvc_build/vs10/Makefile
+	meta/Makefile
+	meta/as10/Makefile
+	meta/as11/Makefile
+	meta/mxf2raw/Makefile
+	meta/rdd6/Makefile
+	bmx.pc])
 
 AC_OUTPUT
 

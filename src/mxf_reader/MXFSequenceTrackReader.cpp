@@ -35,9 +35,11 @@
 
 #include <cstring>
 
+#include <set>
+
 #include <bmx/mxf_reader/MXFSequenceTrackReader.h>
 #include <bmx/mxf_reader/MXFSequenceReader.h>
-#include <bmx/essence_parser/AVCIEssenceParser.h>
+#include <bmx/essence_parser/AVCEssenceParser.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -57,12 +59,16 @@ MXFSequenceTrackReader::MXFSequenceTrackReader(MXFSequenceReader *sequence_reade
     mTrackInfo = 0;
     mFileDescriptor = 0;
     mFileSourcePackage = 0;
+    mEmptyFrames = false;
+    mEmptyFramesSet = false;
     mIsEnabled = true;
     mReadStartPosition = 0;
-    mReadDuration = 0;
-    mSampleRate = ZERO_RATIONAL;
+    mReadDuration = -1;
+    mEditRate = ZERO_RATIONAL;
     mPosition = 0;
     mDuration = 0;
+    mOrigin = 0;
+    mReadError = false;
 
     mFrameBuffer.SetTargetBuffer(new DefaultFrameBuffer(), true);
 }
@@ -70,6 +76,18 @@ MXFSequenceTrackReader::MXFSequenceTrackReader(MXFSequenceReader *sequence_reade
 MXFSequenceTrackReader::~MXFSequenceTrackReader()
 {
     delete mTrackInfo;
+}
+
+void MXFSequenceTrackReader::SetEmptyFrames(bool enable)
+{
+    mEmptyFrames = enable;
+    mEmptyFramesSet = true;
+
+    mFrameBuffer.SetEmptyFrames(enable);
+
+    size_t i;
+    for (i = 0; i < mTrackSegments.size(); i++)
+        mTrackSegments[i]->SetEmptyFrames(enable);
 }
 
 bool MXFSequenceTrackReader::IsCompatible(MXFTrackReader *segment) const
@@ -108,8 +126,9 @@ void MXFSequenceTrackReader::AppendSegment(MXFTrackReader *segment)
         mTrackInfo = segment->GetTrackInfo()->Clone();
         mFileDescriptor = segment->GetFileDescriptor();
         mFileSourcePackage = segment->GetFileSourcePackage();
-        mSampleRate = segment->GetSampleRate();
+        mEditRate = segment->GetEditRate();
         mDuration = segment->GetDuration();
+        mOrigin = segment->GetOrigin();
     } else {
         // not valid because multiple segments means there are multiple file source packages
         mFileSourcePackage = 0;
@@ -134,10 +153,13 @@ void MXFSequenceTrackReader::AppendSegment(MXFTrackReader *segment)
         if (segment_track_info->file_track_number != mTrackInfo->file_track_number)
             mTrackInfo->file_track_number = 0;
 
-        BMX_ASSERT(segment->GetSampleRate() == mTrackInfo->edit_rate);
+        BMX_ASSERT(segment->GetEditRate() == mTrackInfo->edit_rate);
         mTrackInfo->duration += segment->GetDuration();
         mDuration += segment->GetDuration();
     }
+
+    if (mEmptyFramesSet)
+        segment->SetEmptyFrames(mEmptyFrames);
 
     mTrackSegments.push_back(segment);
 }
@@ -192,10 +214,25 @@ void MXFSequenceTrackReader::SetFrameBuffer(FrameBuffer *frame_buffer, bool take
     mFrameBuffer.SetTargetBuffer(frame_buffer, take_ownership);
 }
 
-void MXFSequenceTrackReader::GetAvailableReadLimits(int64_t *start_position, int64_t *duration) const
+vector<size_t> MXFSequenceTrackReader::GetFileIds(bool internal_ess_only) const
 {
-    int16_t precharge = GetPrecharge(0, true);
-    int16_t rollout = GetRollout(mDuration - 1, true);
+    set<size_t> file_id_set;
+    size_t i;
+    for (i = 0; i < mTrackSegments.size(); i++) {
+        vector<size_t> seg_file_ids = mTrackSegments[i]->GetFileIds(internal_ess_only);
+        file_id_set.insert(seg_file_ids.begin(), seg_file_ids.end());
+    }
+
+    vector<size_t> file_ids;
+    file_ids.insert(file_ids.begin(), file_id_set.begin(), file_id_set.end());
+
+    return file_ids;
+}
+
+void MXFSequenceTrackReader::GetReadLimits(bool limit_to_available, int64_t *start_position, int64_t *duration) const
+{
+    int16_t precharge = GetPrecharge(0, limit_to_available);
+    int16_t rollout = GetRollout(mDuration - 1, limit_to_available);
     *start_position = 0 + precharge;
     *duration = - precharge + mDuration + rollout;
 }
@@ -204,7 +241,7 @@ void MXFSequenceTrackReader::SetReadLimits()
 {
     int64_t start_position;
     int64_t duration;
-    GetAvailableReadLimits(&start_position, &duration);
+    GetReadLimits(false, &start_position, &duration);
     SetReadLimits(start_position, duration, true);
 }
 
@@ -257,7 +294,7 @@ uint32_t MXFSequenceTrackReader::Read(uint32_t num_samples, bool is_top)
         return 0;
 
     if (is_top) {
-        mSequenceReader->SetNextFramePosition(mPosition);
+        mSequenceReader->SetNextFramePosition(mEditRate, mPosition);
         mSequenceReader->SetNextFrameTrackPositions();
     }
 
@@ -335,9 +372,9 @@ int16_t MXFSequenceTrackReader::GetRollout(int64_t position, bool limit_to_avail
     return segment->GetRollout(segment_position, limit_to_available);
 }
 
-void MXFSequenceTrackReader::SetNextFramePosition(int64_t position)
+void MXFSequenceTrackReader::SetNextFramePosition(Rational edit_rate, int64_t position)
 {
-    mSequenceReader->SetNextFramePosition(position);
+    mSequenceReader->SetNextFramePosition(edit_rate, position);
 }
 
 SourcePackage* MXFSequenceTrackReader::GetFileSourcePackage() const

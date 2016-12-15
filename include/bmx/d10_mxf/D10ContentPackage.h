@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_D10_CONTENT_PACKAGE_H__
-#define __BMX_D10_CONTENT_PACKAGE_H__
+#ifndef BMX_D10_CONTENT_PACKAGE_H_
+#define BMX_D10_CONTENT_PACKAGE_H_
 
 #include <vector>
 #include <deque>
@@ -40,12 +40,19 @@
 
 #include <bmx/BMXTypes.h>
 #include <bmx/ByteArray.h>
+#include <bmx/frame/DataBufferArray.h>
 
 
 
 namespace bmx
 {
 
+
+typedef struct
+{
+    uint8_t index;
+    uint8_t count;
+} D10SoundChannelInfo;
 
 class D10ContentPackageInfo
 {
@@ -60,15 +67,16 @@ public:
     bool have_input_user_timecode;
     uint32_t picture_track_index;
     uint32_t picture_sample_size;
-    std::map<uint32_t, uint8_t> sound_channels;
+    std::map<uint32_t, D10SoundChannelInfo> sound_channels;
     std::vector<uint32_t> sound_sample_sequence;
     bool sound_sequence_offset_set;
     uint8_t sound_sequence_offset;
     uint32_t max_sound_sample_count;
-    uint32_t sound_sample_size;
+    uint32_t sound_ch_sample_size;
     uint32_t system_item_size;
     uint32_t picture_item_size;
     uint32_t sound_item_size;
+    Timecode start_timecode;
 };
 
 
@@ -87,12 +95,13 @@ public:
 
     bool IsComplete(uint32_t track_index);
     uint32_t WriteSamples(uint32_t track_index, const unsigned char *data, uint32_t size, uint32_t num_samples);
+    void WriteSample(uint32_t track_index, const CDataBuffer *data_array, uint32_t array_size);
 
     bool IsComplete();
     void Write(mxfpp::File *mxf_file);
 
 private:
-    void CopySoundSamples(const unsigned char *data, uint32_t num_samples, uint8_t channel,
+    void CopySoundSamples(const unsigned char *data, uint32_t num_samples, const D10SoundChannelInfo &channel_info,
                           uint32_t output_start_sample);
 
     uint32_t WriteSystemItem(mxfpp::File *mxf_file);
@@ -120,17 +129,19 @@ public:
     void SetMuteSoundFlags(uint8_t flags);
     void SetInvalidSoundFlags(uint8_t flags);
     void SetHaveInputUserTimecode(bool enable);
+    void SetStartTimecode(Timecode start_timecode);
     void SetSoundSequenceOffset(uint8_t offset);
 
     void RegisterMPEGTrackElement(uint32_t track_index, uint32_t sample_size);
     void RegisterPCMTrackElement(uint32_t track_index, uint8_t output_channel_index,
-                                 std::vector<uint32_t> sample_sequence, uint32_t sample_size);
+                                 std::vector<uint32_t> sample_sequence, uint32_t sample_size, uint32_t channel_count);
 
     void PrepareWrite();
 
 public:
     void WriteUserTimecode(Timecode user_timecode);
     void WriteSamples(uint32_t track_index, const unsigned char *data, uint32_t size, uint32_t num_samples);
+    void WriteSample(uint32_t track_index, const CDataBuffer *data_array, uint32_t array_size);
 
 public:
     uint8_t GetSoundChannelCount() const;

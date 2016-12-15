@@ -87,18 +87,34 @@ void AS02PictureTrack::WriteSamples(const unsigned char *data, uint32_t size, ui
     BMX_CHECK(size > 0 && num_samples > 0);
     BMX_CHECK(size >= num_samples * mSampleSize);
 
+    CDataBuffer data_array[1];
     uint32_t i;
     for (i = 0; i < num_samples; i++) {
-        HandlePartitionInterval(true);
+        data_array[0].data = (unsigned char*)&data[i * mSampleSize];
+        data_array[0].size = mSampleSize;
+        WriteSample(data_array, 1);
+    }
+}
 
-        mMXFFile->writeFixedKL(&mEssenceElementKey, mLLen, mSampleSize);
-        BMX_CHECK(mMXFFile->write(&data[i * mSampleSize], mSampleSize) == mSampleSize);
+void AS02PictureTrack::WriteSample(const CDataBuffer *data_array, uint32_t array_size)
+{
+    BMX_ASSERT(mMXFFile);
+    BMX_CHECK(data_array && array_size > 0);
 
-        mContainerDuration++;
-        mContainerSize += mxfKey_extlen + mLLen + mSampleSize;
+    HandlePartitionInterval(true);
+
+    mMXFFile->writeFixedKL(&mEssenceElementKey, mEssenceElementLLen, dba_get_total_size(data_array, array_size));
+    mContainerSize += mxfKey_extlen + mEssenceElementLLen;
+
+    uint32_t i;
+    for (i = 0; i < array_size; i++) {
+        BMX_CHECK(mMXFFile->write(data_array[i].data, data_array[i].size) == data_array[i].size);
+        mContainerSize += data_array[i].size;
+
+        UpdateEssenceOnlyChecksum(data_array[i].data, data_array[i].size);
     }
 
-    UpdateEssenceOnlyChecksum(data, num_samples * mSampleSize);
+    mContainerDuration++;
 }
 
 void AS02PictureTrack::HandlePartitionInterval(bool can_start_partition)
@@ -109,24 +125,28 @@ void AS02PictureTrack::HandlePartitionInterval(bool can_start_partition)
     if (mPartitionFrameCount >= mPartitionInterval && can_start_partition) {
         if (!HaveCBEIndexTable()) {
             // VBE index table partition
+
+            mMXFFile->openMemoryFile(8192);
+
             Partition &index_partition = mMXFFile->createPartition();
-            index_partition.setKey(&MXF_PP_K(OpenIncomplete, Body));
+            index_partition.setKey(&MXF_PP_K(OpenComplete, Body));
             index_partition.setIndexSID(mIndexSID);
             index_partition.setBodySID(0);
             index_partition.write(mMXFFile);
-            index_partition.fillToKag(mMXFFile);
 
             WriteVBEIndexTable(&index_partition);
+
+            mMXFFile->updatePartitions();
+            mMXFFile->closeMemoryFile();
         }
 
         // start a new essence data partition
         Partition &ess_partition = mMXFFile->createPartition();
-        ess_partition.setKey(&MXF_PP_K(OpenIncomplete, Body));
+        ess_partition.setKey(&MXF_PP_K(OpenComplete, Body));
         ess_partition.setIndexSID(0);
         ess_partition.setBodySID(mBodySID);
         ess_partition.setBodyOffset(mContainerSize);
         ess_partition.write(mMXFFile);
-        ess_partition.fillToKag(mMXFFile);
 
         mPartitionFrameCount = 0;
     }

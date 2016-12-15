@@ -29,15 +29,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_READER_H__
-#define __BMX_MXF_READER_H__
+#ifndef BMX_MXF_READER_H_
+#define BMX_MXF_READER_H_
 
+#include <vector>
 
 #include <libMXF++/MXF.h>
 
 #include <bmx/BMXTypes.h>
 #include <bmx/mxf_reader/MXFTrackReader.h>
+#include <bmx/mxf_reader/MXFTextObject.h>
 #include <bmx/mxf_reader/MXFIndexEntryExt.h>
+#include <bmx/mxf_reader/MXFFileIndex.h>
+#include <bmx/mxf_reader/MXFMCALabelIndex.h>
 
 
 
@@ -45,6 +49,7 @@ namespace bmx
 {
 
 
+class MXFFileReader;
 class MXFGroupReader;
 
 class MXFReader
@@ -56,14 +61,32 @@ public:
     MXFReader();
     virtual ~MXFReader();
 
+    virtual void SetEmptyFrames(bool enable) = 0;
+
+    virtual void SetFileIndex(MXFFileIndex *file_index, bool take_ownership);
+    const MXFFileIndex* GetFileIndex() const { return mFileIndex; }
+
+    virtual void SetMCALabelIndex(MXFMCALabelIndex *label_index, bool take_ownership);
+    const MXFMCALabelIndex* GetMCALabelIndex() const { return mMCALabelIndex; }
+
 public:
-    virtual void GetAvailableReadLimits(int64_t *start_position, int64_t *duration) const = 0;
+    virtual MXFFileReader* GetFileReader(size_t file_id) = 0;
+    virtual std::vector<size_t> GetFileIds(bool internal_ess_only) const = 0;
+
+    virtual bool IsComplete() const = 0;
+    virtual bool IsSeekable() const = 0;
+
+    virtual void GetReadLimits(bool limit_to_available, int64_t *start_position, int64_t *duration) const = 0;
     virtual void SetReadLimits() = 0;
     virtual void SetReadLimits(int64_t start_position, int64_t duration, bool seek_start_position) = 0;
     virtual int64_t GetReadStartPosition() const = 0;
     virtual int64_t GetReadDuration() const = 0;
 
+    bool CheckReadLastFrame();
+
     virtual uint32_t Read(uint32_t num_samples, bool is_top = true) = 0;
+    virtual bool ReadError() const               { return mReadError; }
+    virtual std::string ReadErrorMessage() const { return mReadErrorMessage; }
 
     virtual void Seek(int64_t position) = 0;
     void ClearFrameBuffers(bool del_frames);
@@ -73,8 +96,9 @@ public:
     virtual int16_t GetMaxPrecharge(int64_t position, bool limit_to_available) const = 0;
     virtual int16_t GetMaxRollout(int64_t position, bool limit_to_available) const = 0;
 
-    mxfRational GetSampleRate() const { return mSampleRate; }
+    mxfRational GetEditRate() const   { return mEditRate; }
     int64_t GetDuration() const       { return mDuration; }
+    int64_t GetOrigin() const         { return mOrigin; }
 
 public:
     virtual bool HaveFixedLeadFillerOffset() const = 0;
@@ -96,6 +120,8 @@ public:
     mxfUMID GetMaterialPackageUID() const            { return mMaterialPackageUID; }
     std::string GetPhysicalSourcePackageName() const { return mPhysicalSourcePackageName; }
 
+    mxfpp::MaterialPackage* GetMaterialPackage() const { return mMaterialPackage; }
+
 public:
     virtual size_t GetNumTrackReaders() const = 0;
     virtual MXFTrackReader* GetTrackReader(size_t track_index) const = 0;
@@ -106,12 +132,22 @@ public:
     virtual int16_t GetTrackRollout(size_t track_index, int64_t clip_position, int16_t clip_rollout) const = 0;
 
 public:
-    virtual void SetNextFramePosition(int64_t position) = 0;
+    virtual size_t GetNumTextObjects() const = 0;
+    virtual MXFTextObject* GetTextObject(size_t index) const = 0;
+
+public:
+    virtual void SetNextFramePosition(Rational edit_rate, int64_t position) = 0;
     virtual void SetNextFrameTrackPositions() = 0;
 
+    virtual void SetTemporaryFrameBuffer(bool enable) = 0;
+
 protected:
-    mxfRational mSampleRate;
+    mxfRational mEditRate;
     int64_t mDuration;
+    int64_t mOrigin;
+
+    bool mReadError;
+    std::string mReadErrorMessage;
 
     Timecode *mMaterialStartTimecode;
     Timecode *mFileSourceStartTimecode;
@@ -120,6 +156,13 @@ protected:
     std::string mMaterialPackageName;
     mxfUMID mMaterialPackageUID;
     std::string mPhysicalSourcePackageName;
+    mxfpp::MaterialPackage *mMaterialPackage;
+
+    MXFFileIndex *mFileIndex;
+    bool mOwnFileIndex;
+
+    MXFMCALabelIndex *mMCALabelIndex;
+    bool mOwnMCALabelIndex;
 
 private:
     Timecode CreateTimecode(const Timecode *start_timecode, int64_t position) const;

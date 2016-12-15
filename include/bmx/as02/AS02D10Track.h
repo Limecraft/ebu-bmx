@@ -29,11 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AS02_D10_TRACK_H__
-#define __BMX_AS02_D10_TRACK_H__
+#ifndef BMX_AS02_D10_TRACK_H_
+#define BMX_AS02_D10_TRACK_H_
 
 #include <bmx/as02/AS02PictureTrack.h>
 #include <bmx/mxf_helper/D10MXFDescriptorHelper.h>
+#include <bmx/writer_helper/D10WriterHelper.h>
 
 
 
@@ -48,16 +49,13 @@ public:
                  std::string rel_uri);
     virtual ~AS02D10Track();
 
-    void SetSampleSize(uint32_t size, bool remove_excess_padding);
-
 public:
     virtual void PrepareWrite();
     virtual void WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples);
 
 private:
     D10MXFDescriptorHelper *mD10DescriptorHelper;
-    uint32_t mInputSampleSize;
-    bool mRemoveExcessPadding;
+    D10WriterHelper mWriterHelper;
 };
 
 

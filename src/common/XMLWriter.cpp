@@ -33,6 +33,7 @@
 #include <cerrno>
 
 #include <bmx/XMLWriter.h>
+#include <bmx/Utils.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -48,14 +49,16 @@ static const string GT   = "&gt;";
 static const string AMP  = "&amp;";
 static const string QUOT = "&quot;";
 static const string APOS = "&apos;";
+static const string LF   = "&#x0A;";
+static const string CR   = "&#x0D;";
 
 
 
-XMLWriter* XMLWriter::Open(string filename)
+XMLWriter* XMLWriter::Open(const string &filename)
 {
     FILE *xml_file = fopen(filename.c_str(), "wb");
     if (!xml_file) {
-        log_error("Failed to open XML file '%s' for writing: %s\n", filename.c_str(), strerror(errno));
+        log_error("Failed to open XML file '%s' for writing: %s\n", filename.c_str(), bmx_strerror(errno).c_str());
         return 0;
     }
 
@@ -68,16 +71,34 @@ XMLWriter::XMLWriter(FILE *xml_file)
     mXMLFile = xml_file;
     mPrevWriteType = NONE;
     mLevel = 0;
+    mEscapeCR = false;
+    mEscapeAttrNewlineChars = false;
+    mSkipCR = false;
 }
 
 XMLWriter::~XMLWriter()
 {
     size_t i;
     for (i = 0; i < mElementStack.size(); i++)
-        WriteElementEnd();
+        delete mElementStack[i];
 
-    if (mXMLFile)
+    if (mXMLFile && mXMLFile != stdout && mXMLFile != stderr)
         fclose(mXMLFile);
+}
+
+void XMLWriter::EscapeCR(bool escape)
+{
+    mEscapeCR = escape;
+}
+
+void XMLWriter::EscapeAttrNewlineChars(bool escape)
+{
+    mEscapeAttrNewlineChars = escape;
+}
+
+void XMLWriter::SkipCR(bool skip)
+{
+    mSkipCR = skip;
 }
 
 void XMLWriter::WriteDocumentStart()
@@ -96,14 +117,17 @@ void XMLWriter::WriteDocumentEnd()
         WriteElementEnd();
     mElementStack.clear();
 
+    BMX_CHECK(mXMLFile);
+    fclose(mXMLFile);
+    mXMLFile = 0;
+
     mPrevWriteType = END;
 }
 
-void XMLWriter::WriteElementStart(std::string ns, string local_name)
+void XMLWriter::WriteElementStart(const string &ns, const string &local_name)
 {
     BMX_CHECK(mPrevWriteType == START ||
               mPrevWriteType == ELEMENT_START ||
-              mPrevWriteType == DELAYED_ELEMENT_START ||
               mPrevWriteType == ATTRIBUTE_START ||
               mPrevWriteType == ATTRIBUTE_CONTENT ||
               mPrevWriteType == ATTRIBUTE_END ||
@@ -148,7 +172,7 @@ void XMLWriter::WriteElementStart(std::string ns, string local_name)
     mPrevWriteType = ELEMENT_START;
 }
 
-void XMLWriter::DeclareNamespace(string ns, std::string prefix)
+void XMLWriter::DeclareNamespace(const string &ns, const string &prefix)
 {
     BMX_CHECK(mPrevWriteType == DELAYED_ELEMENT_START ||
               mPrevWriteType == ELEMENT_START);
@@ -188,7 +212,7 @@ void XMLWriter::DeclareNamespace(string ns, std::string prefix)
     }
 }
 
-void XMLWriter::WriteAttribute(std::string ns, string local_name, string value)
+void XMLWriter::WriteAttribute(const string &ns, const string &local_name, const string &value)
 {
     BMX_CHECK(mPrevWriteType == ELEMENT_START ||
               mPrevWriteType == ATTRIBUTE_START ||
@@ -216,7 +240,7 @@ void XMLWriter::WriteAttribute(std::string ns, string local_name, string value)
     mPrevWriteType = ATTRIBUTE_END;
 }
 
-void XMLWriter::WriteAttributeStart(std::string ns, string local_name)
+void XMLWriter::WriteAttributeStart(const string &ns, const string &local_name)
 {
     BMX_CHECK(mPrevWriteType == ELEMENT_START ||
               mPrevWriteType == ATTRIBUTE_START ||
@@ -242,7 +266,7 @@ void XMLWriter::WriteAttributeStart(std::string ns, string local_name)
     mPrevWriteType = ATTRIBUTE_START;
 }
 
-void XMLWriter::WriteAttributeContent(string value)
+void XMLWriter::WriteAttributeContent(const string &value)
 {
     BMX_CHECK(mPrevWriteType == ATTRIBUTE_START ||
               mPrevWriteType == ATTRIBUTE_CONTENT);
@@ -262,7 +286,7 @@ void XMLWriter::WriteAttributeEnd()
     mPrevWriteType = ATTRIBUTE_END;
 }
 
-void XMLWriter::WriteElementContent(string content)
+void XMLWriter::WriteElementContent(const string &content)
 {
     BMX_CHECK(mPrevWriteType == ELEMENT_START ||
               mPrevWriteType == ATTRIBUTE_START ||
@@ -296,7 +320,7 @@ void XMLWriter::WriteElementEnd()
 
     BMX_CHECK(!mElementStack.empty());
     Element *element = mElementStack.back();
-    const string &prefix = element->GetPrefix();
+    string prefix = element->GetPrefix();
     BMX_CHECK(!prefix.empty());
 
     if (mPrevWriteType == ATTRIBUTE_START || mPrevWriteType == ATTRIBUTE_CONTENT)
@@ -330,14 +354,15 @@ void XMLWriter::WriteElementEnd()
     mPrevWriteType = ELEMENT_END;
 }
 
-void XMLWriter::WriteElement(string ns, string local_name, string content)
+void XMLWriter::WriteElement(const string &ns, const string &local_name, const string &content)
 {
     WriteElementStart(ns, local_name);
-    WriteElementContent(content);
+    if (!content.empty())
+        WriteElementContent(content);
     WriteElementEnd();
 }
 
-void XMLWriter::WriteComment(string comment)
+void XMLWriter::WriteComment(const string &comment)
 {
     BMX_CHECK(mPrevWriteType == START ||
               mPrevWriteType == ELEMENT_START ||
@@ -363,7 +388,7 @@ void XMLWriter::WriteComment(string comment)
         mPrevWriteType = COMMENT;
 }
 
-void XMLWriter::WriteProcInstruction(string target, string instruction)
+void XMLWriter::WriteProcInstruction(const string &target, const string &instruction)
 {
     BMX_CHECK(mPrevWriteType == START ||
               mPrevWriteType == ELEMENT_START ||
@@ -391,7 +416,7 @@ void XMLWriter::WriteProcInstruction(string target, string instruction)
         mPrevWriteType = PROC_INSTRUCTION;
 }
 
-void XMLWriter::WriteText(string text)
+void XMLWriter::WriteText(const string &text)
 {
     Write(text);
 }
@@ -401,7 +426,7 @@ void XMLWriter::Flush()
     fflush(mXMLFile);
 }
 
-string XMLWriter::GetPrefix(string ns)
+string XMLWriter::GetPrefix(const string &ns)
 {
     if (mElementStack.empty())
         return "";
@@ -409,7 +434,7 @@ string XMLWriter::GetPrefix(string ns)
     return mElementStack.back()->GetPrefix(ns);
 }
 
-string XMLWriter::GetNonDefaultNSPrefix(string ns)
+string XMLWriter::GetNonDefaultNSPrefix(const string &ns)
 {
     if (mElementStack.empty())
         return "";
@@ -418,7 +443,7 @@ string XMLWriter::GetNonDefaultNSPrefix(string ns)
 }
 
 
-XMLWriter::Element::Element(Element *parent_element, string ns, string local_name)
+XMLWriter::Element::Element(Element *parent_element, const string &ns, const string &local_name)
 {
     mParentElement = parent_element;
     mNS = ns;
@@ -436,7 +461,7 @@ XMLWriter::Element::~Element()
 {
 }
 
-bool XMLWriter::Element::AddNamespaceDecl(string ns, string prefix)
+bool XMLWriter::Element::AddNamespaceDecl(const string &ns, const string &prefix)
 {
     BMX_CHECK(!ns.empty());
     BMX_CHECK(!prefix.empty());
@@ -461,7 +486,7 @@ bool XMLWriter::Element::AddNamespaceDecl(string ns, string prefix)
     return true;
 }
 
-string XMLWriter::Element::GetPrefix(const std::string &ns) const
+string XMLWriter::Element::GetPrefix(const string &ns) const
 {
     if (mDefaultNS == ns) {
         return INTERNAL_DEFAULT_NAMESPACE_PREFIX;
@@ -474,7 +499,7 @@ string XMLWriter::Element::GetPrefix(const std::string &ns) const
     }
 }
 
-string XMLWriter::Element::GetNonDefaultNSPrefix(const std::string &ns) const
+string XMLWriter::Element::GetNonDefaultNSPrefix(const string &ns) const
 {
     map<string, string>::const_iterator result = mNSpaceDecls.find(ns);
     if (result == mNSpaceDecls.end())
@@ -496,14 +521,22 @@ void XMLWriter::WriteElementData(const string &data)
     const char *data_ptr = data.c_str();
     size_t i;
     for (i = 0; i < data.size(); i++) {
-        if (*data_ptr == '>')
+        if (*data_ptr == '>') {
             escaped_data.append(GT);
-        else if (*data_ptr == '<')
+        } else if (*data_ptr == '<') {
             escaped_data.append(LT);
-        else if (*data_ptr == '&')
+        } else if (*data_ptr == '&') {
             escaped_data.append(AMP);
-        else
+        } else if (*data_ptr == 0x0d) {
+            if (!mSkipCR) {
+                if (mEscapeCR)
+                    escaped_data.append(CR);
+                else
+                    escaped_data.append(data_ptr, 1);
+            }
+        } else {
             escaped_data.append(data_ptr, 1);
+        }
 
         data_ptr++;
     }
@@ -518,14 +551,24 @@ void XMLWriter::WriteAttributeData(const string &data)
     const char *data_ptr = data.c_str();
     size_t i;
     for (i = 0; i < data.size(); i++) {
-        if (*data_ptr == '\"')
+        if (*data_ptr == '\"') {
             escaped_data.append(QUOT);
-        else if (*data_ptr == '\'')
+        } else if (*data_ptr == '\'') {
             escaped_data.append(APOS);
-        else if (*data_ptr == '&')
+        } else if (*data_ptr == '&') {
             escaped_data.append(AMP);
-        else
+        } else if (*data_ptr == 0x0a && mEscapeAttrNewlineChars) {
+            escaped_data.append(LF);
+        } else if (*data_ptr == 0x0d) {
+            if (!mSkipCR) {
+                if (mEscapeAttrNewlineChars || mEscapeCR)
+                    escaped_data.append(CR);
+                else
+                    escaped_data.append(data_ptr, 1);
+            }
+        } else {
             escaped_data.append(data_ptr, 1);
+        }
 
         data_ptr++;
     }
@@ -549,7 +592,8 @@ void XMLWriter::Write(const string &data)
 
 void XMLWriter::Write(const char *data, size_t len)
 {
+    BMX_CHECK(mXMLFile);
     if (fwrite(data, 1, len, mXMLFile) != len)
-        log_error("XML fwrite failed: %s\n", strerror(errno));
+        log_error("XML fwrite failed: %s\n", bmx_strerror(errno).c_str());
 }
 

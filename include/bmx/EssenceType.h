@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_ESSENCE_TYPE_H__
-#define __BMX_ESSENCE_TYPE_H__
+#ifndef BMX_ESSENCE_TYPE_H_
+#define BMX_ESSENCE_TYPE_H_
 
 
 
@@ -44,6 +44,7 @@ typedef enum
     // generic
     PICTURE_ESSENCE,
     SOUND_ESSENCE,
+    DATA_ESSENCE,
     // D-10 video
     D10_30,
     D10_40,
@@ -54,18 +55,35 @@ typedef enum
     DV50,
     DV100_1080I,
     DV100_720P,
-    // AVC-Intra
+    // AVC Intra RP2027
+    AVCI200_1080I,
+    AVCI200_1080P,
+    AVCI200_720P,
     AVCI100_1080I,
     AVCI100_1080P,
     AVCI100_720P,
     AVCI50_1080I,
     AVCI50_1080P,
     AVCI50_720P,
+    // AVC Unconstrained
+    AVC_BASELINE,
+    AVC_CONSTRAINED_BASELINE,
+    AVC_MAIN,
+    AVC_EXTENDED,
+    AVC_HIGH,
+    AVC_HIGH_10,
+    AVC_HIGH_422,
+    AVC_HIGH_444,
+    AVC_HIGH_10_INTRA,
+    AVC_HIGH_422_INTRA,
+    AVC_HIGH_444_INTRA,
+    AVC_CAVLC_444_INTRA,
     // Uncompressed video
     UNC_SD,
     UNC_HD_1080I,
     UNC_HD_1080P,
     UNC_HD_720P,
+    UNC_UHD_3840,
     AVID_10BIT_UNC_SD,
     AVID_10BIT_UNC_HD_1080I,
     AVID_10BIT_UNC_HD_1080P,
@@ -85,6 +103,8 @@ typedef enum
     MPEG2LG_MP_HL_720P,
     MPEG2LG_MP_H14_1080I,
     MPEG2LG_MP_H14_1080P,
+    // VC-2
+    VC2,
     // VC-3
     VC3_1080P_1235,
     VC3_1080P_1237,
@@ -92,10 +112,14 @@ typedef enum
     VC3_1080I_1241,
     VC3_1080I_1242,
     VC3_1080I_1243,
+    VC3_1080I_1244,
     VC3_720P_1250,
     VC3_720P_1251,
     VC3_720P_1252,
     VC3_1080P_1253,
+    VC3_720P_1258,
+    VC3_1080P_1259,
+    VC3_1080I_1260,
     // Avid MJPEG
     MJPEG_2_1,
     MJPEG_3_1,
@@ -107,10 +131,16 @@ typedef enum
     // PCM
     WAVE_PCM,
     D10_AES3_PCM,
+    // ST 436 data
+    ANC_DATA,
+    VBI_DATA,
 } EssenceType;
 
 
 const char* essence_type_to_string(EssenceType essence_type);
+const char* essence_type_to_enum_string(EssenceType essence_type);
+
+EssenceType get_generic_essence_type(EssenceType essence_type);
 
 
 };

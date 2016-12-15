@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_UK_DPP_FRAMEWORK_H__
-#define __BMX_UK_DPP_FRAMEWORK_H__
+#ifndef BMX_UK_DPP_FRAMEWORK_H_
+#define BMX_UK_DPP_FRAMEWORK_H_
 
 
 #include <libMXF++/metadata/DMFramework.h>
@@ -75,12 +75,11 @@ public:
     uint8_t Get3DType();
     bool HaveProductPlacement();
     bool GetProductPlacement();
-    bool HaveFPAPass();
-    uint8_t GetFPAPass();
-    bool HaveFPAManufacturer();
-    std::string GetFPAManufacturer();
-    bool HaveFPAVersion();
-    std::string GetFPAVersion();
+    uint8_t GetPSEPass();
+    bool HavePSEManufacturer();
+    std::string GetPSEManufacturer();
+    bool HavePSEVersion();
+    std::string GetPSEVersion();
     bool HaveVideoComments();
     std::string GetVideoComments();
     std::string GetSecondaryAudioLanguage();
@@ -125,9 +124,9 @@ public:
     void Set3D(bool value);
     void Set3DType(uint8_t value);
     void SetProductPlacement(bool value);
-    void SetFPAPass(uint8_t value);
-    void SetFPAManufacturer(std::string value);
-    void SetFPAVersion(std::string value);
+    void SetPSEPass(uint8_t value);
+    void SetPSEManufacturer(std::string value);
+    void SetPSEVersion(std::string value);
     void SetVideoComments(std::string value);
     void SetSecondaryAudioLanguage(std::string value);
     void SetTertiaryAudioLanguage(std::string value);

@@ -200,7 +200,7 @@ bool SDTICPSystemMetadataReader::ProcessFrameMetadata(const mxfKey *key, uint64_
     mMetadata = new SDTICPSystemMetadata();
 
     BMX_CHECK_M(len >= 2 && len <= 57,
-                ("Unexpected len %"PRIu64" for system metadata pack", len));
+                ("Unexpected len %" PRIu64 " for system metadata pack", len));
     unsigned char bytes[57];
     uint32_t num_read = sizeof(bytes);
     if (num_read > len)
@@ -347,13 +347,13 @@ FrameMetadataReader::FrameMetadataReader(MXFFileReader *file_reader)
     vector<mxfUL> dm_schemes = file_reader->GetHeaderMetadata()->getPreface()->getDMSchemes();
     size_t i;
     for (i = 0; i < dm_schemes.size(); i++) {
-        if (mxf_equals_ul(&MXF_DM_L(APP_PreservationDescriptiveScheme), &dm_schemes[i])) {
+        if (mxf_equals_ul_mod_regver(&MXF_DM_L(APP_PreservationDescriptiveScheme), &dm_schemes[i])) {
             is_bbc_preservation_file = true;
             break;
         }
     }
 
-    mReaders.push_back(new SystemScheme1Reader(file_reader->mFile, file_reader->GetSampleRate(),
+    mReaders.push_back(new SystemScheme1Reader(file_reader->mFile, file_reader->GetEditRate(),
                                                is_bbc_preservation_file));
     mReaders.push_back(new SDTICPSystemMetadataReader(file_reader->mFile));
     mReaders.push_back(new SDTICPPackageMetadataReader(file_reader->mFile));

@@ -59,11 +59,9 @@ OP1AMPEG2LGTrack::~OP1AMPEG2LGTrack()
 {
 }
 
-void OP1AMPEG2LGTrack::PrepareWrite(uint8_t picture_track_count, uint8_t sound_track_count)
+void OP1AMPEG2LGTrack::PrepareWrite(uint8_t track_count)
 {
-    (void)sound_track_count;
-
-    CompleteEssenceKeyAndTrackNum(picture_track_count);
+    CompleteEssenceKeyAndTrackNum(track_count);
 
     mCPManager->RegisterPictureTrackElement(mTrackIndex, mEssenceElementKey, false);
     mIndexTable->RegisterPictureTrackElement(mTrackIndex, false, true);
@@ -88,6 +86,10 @@ void OP1AMPEG2LGTrack::WriteSamplesInt(const unsigned char *data, uint32_t size,
             log_warn("Invalid MPEG temporal reference - failed to set MXF temporal offset in index entry before start\n");
         }
     }
+    if (mWriterHelper.HaveGOPHeader() && mIndexTable->RequireUpdatesAtEnd(mTrackIndex, 0)) {
+        log_warn("Ignoring incomplete index table information in previous GOP\n");
+        mIndexTable->IgnoreRequiredUpdates(mTrackIndex);
+    }
 
 
     // write frame and add index entry
@@ -95,14 +97,11 @@ void OP1AMPEG2LGTrack::WriteSamplesInt(const unsigned char *data, uint32_t size,
     mCPManager->WriteSamples(mTrackIndex, data, size, num_samples);
     mIndexTable->AddIndexEntry(mTrackIndex, mWriterHelper.GetFramePosition(), mWriterHelper.GetTemporalOffset(),
                                mWriterHelper.GetKeyFrameOffset(), mWriterHelper.GetFlags(),
-                               mWriterHelper.HaveGOPHeader());
+                               mWriterHelper.HaveGOPHeader(), !mWriterHelper.HaveTemporalOffset());
 }
 
 void OP1AMPEG2LGTrack::CompleteWrite()
 {
-    if (!mWriterHelper.CheckTemporalOffsetsComplete(mOP1AFile->mOutputEndOffset))
-        log_warn("Incomplete MPEG-2 temporal offset data in index table\n");
-
     // update the file descriptor with info extracted from the essence data
     MPEGVideoDescriptor *mpeg_descriptor = dynamic_cast<MPEGVideoDescriptor*>(mDescriptorHelper->GetFileDescriptor());
     BMX_ASSERT(mpeg_descriptor);
@@ -113,8 +112,8 @@ void OP1AMPEG2LGTrack::CompleteWrite()
     mpeg_descriptor->setIdenticalGOP(mWriterHelper.GetIdenticalGOP());
     if (mWriterHelper.GetMaxGOP() > 0)
         mpeg_descriptor->setMaxGOP(mWriterHelper.GetMaxGOP());
-    if (mWriterHelper.GetBPictureCount() > 0)
-        mpeg_descriptor->setBPictureCount(mWriterHelper.GetBPictureCount());
+    if (mWriterHelper.GetMaxBPictureCount() > 0)
+        mpeg_descriptor->setMaxBPictureCount(mWriterHelper.GetMaxBPictureCount());
     if (mWriterHelper.GetBitRate() > 0)
         mpeg_descriptor->setBitRate(mWriterHelper.GetBitRate());
 }

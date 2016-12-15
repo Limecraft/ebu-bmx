@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AS02_UNC_TRACK_H__
-#define __BMX_AS02_UNC_TRACK_H__
+#ifndef BMX_AS02_UNC_TRACK_H_
+#define BMX_AS02_UNC_TRACK_H_
 
 #include <bmx/as02/AS02PictureTrack.h>
 #include <bmx/mxf_helper/UncCDCIMXFDescriptorHelper.h>
@@ -49,9 +49,17 @@ public:
     virtual ~AS02UncTrack();
 
     void SetComponentDepth(uint32_t depth);             // default 8; alternative is 10
+    void SetInputHeight(uint32_t height);               // default stored height
+
+protected:
+    virtual void PrepareWrite();
+    virtual void WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples);
 
 private:
     UncCDCIMXFDescriptorHelper *mUncDescriptorHelper;
+    uint32_t mInputHeight;
+    uint32_t mInputSampleSize;
+    uint32_t mSkipSize;
 };
 
 

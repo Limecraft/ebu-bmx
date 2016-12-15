@@ -29,16 +29,21 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_CLIP_WRITER_TRACK_H__
-#define __BMX_CLIP_WRITER_TRACK_H__
+#ifndef BMX_CLIP_WRITER_TRACK_H_
+#define BMX_CLIP_WRITER_TRACK_H_
 
 
 #include <bmx/as02/AS02Track.h>
-#include <bmx/as11/AS11Track.h>
 #include <bmx/mxf_op1a/OP1ATrack.h>
 #include <bmx/avid_mxf/AvidTrack.h>
 #include <bmx/d10_mxf/D10Track.h>
+#include <bmx/rdd9_mxf/RDD9Track.h>
 #include <bmx/wave/WaveTrackWriter.h>
+#include <bmx/mxf_op1a/OP1AXMLTrack.h>
+#include <bmx/d10_mxf/D10XMLTrack.h>
+#include <bmx/rdd9_mxf/RDD9XMLTrack.h>
+#include <bmx/writer_helper/AVCIWriterHelper.h>
+#include <bmx/mxf_helper/PictureMXFDescriptorHelper.h>
 
 
 
@@ -50,11 +55,10 @@ typedef enum
 {
     CW_UNKNOWN_CLIP_TYPE = 0,
     CW_AS02_CLIP_TYPE,
-    CW_AS11_OP1A_CLIP_TYPE,
-    CW_AS11_D10_CLIP_TYPE,
     CW_OP1A_CLIP_TYPE,
     CW_AVID_CLIP_TYPE,
     CW_D10_CLIP_TYPE,
+    CW_RDD9_CLIP_TYPE,
     CW_WAVE_CLIP_TYPE,
 } ClipWriterType;
 
@@ -67,27 +71,34 @@ public:
 
 public:
     ClipWriterTrack(EssenceType essence_type, AS02Track *track);
-    ClipWriterTrack(EssenceType essence_type, AS11Track *track);
     ClipWriterTrack(EssenceType essence_type, OP1ATrack *track);
     ClipWriterTrack(EssenceType essence_type, AvidTrack *track);
     ClipWriterTrack(EssenceType essence_type, D10Track *track);
+    ClipWriterTrack(EssenceType essence_type, RDD9Track *track);
     ClipWriterTrack(EssenceType essence_type, WaveTrackWriter *track);
+    ClipWriterTrack(OP1AXMLTrack *track);
+    ClipWriterTrack(D10XMLTrack *track);
+    ClipWriterTrack(RDD9XMLTrack *track);
     virtual ~ClipWriterTrack();
 
 public:
     // General properties
     void SetOutputTrackNumber(uint32_t track_number);
+    MXFDescriptorHelper* GetMXFDescriptorHelper();
 
     // Picture properties
     void SetAspectRatio(Rational aspect_ratio);                     // default 16/9
     void SetComponentDepth(uint32_t depth);                         // default 8; alternative is 10
-    void SetSampleSize(uint32_t size, bool remove_excess_padding);  // D10 sample size
     void SetAVCIMode(AVCIMode mode);                                // default depends on track type
     void SetAVCIHeader(const unsigned char *data, uint32_t size);
+    void SetReplaceAVCIHeader(bool enable);                         // default false; requires SetAVCIHeader if true
+    void SetUseAVCSubDescriptor(bool enable);                       // default false
     void SetAFD(uint8_t afd);                                       // default not set
     void SetInputHeight(uint32_t height);                           // uncompressed; default 0
+    void SetVC2ModeFlags(int flags);                                // default VC2_PICTURE_ONLY | VC2_COMPLETE_SEQUENCES
 
     // Sound properties
+    void SetAES3Mapping(bool enable);               // default BWF mapping
     void SetSamplingRate(Rational sampling_rate);   // default 48000/1
     void SetQuantizationBits(uint32_t bits);        // default 16
     void SetChannelCount(uint32_t count);           // default 1
@@ -95,6 +106,22 @@ public:
     void SetAudioRefLevel(int8_t level);            // default not set
     void SetDialNorm(int8_t dial_norm);             // default not set
     void SetSequenceOffset(uint8_t offset);         // default D10 determined from input or not set
+    void SetChannelAssignment(UL label);            // default not set
+    mxfpp::AudioChannelLabelSubDescriptor* AddAudioChannelLabel(
+        mxfpp::AudioChannelLabelSubDescriptor *copy_from = 0);
+    mxfpp::SoundfieldGroupLabelSubDescriptor* AddSoundfieldGroupLabel(
+        mxfpp::SoundfieldGroupLabelSubDescriptor *copy_from = 0);
+    mxfpp::GroupOfSoundfieldGroupsLabelSubDescriptor* AddGroupOfSoundfieldGroupLabel(
+        mxfpp::GroupOfSoundfieldGroupsLabelSubDescriptor *copy_from = 0);
+
+    // Data properties
+    void SetConstantDataSize(uint32_t size);
+    void SetMaxDataSize(uint32_t size);
+
+    // XML properties
+    void SetXMLSource(const std::string &filename);
+    void SetXMLSchemeId(UL id);
+    void SetXMLLanguageCode(const std::string &code);
 
 public:
     void WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples);
@@ -108,6 +135,7 @@ public:
     bool IsSingleField() const;
 
     std::vector<uint32_t> GetShiftedSampleSequence() const;
+    uint32_t GetChannelCount() const;
 
     int64_t GetDuration() const;
     int64_t GetContainerDuration() const;
@@ -117,21 +145,27 @@ public:
     EssenceType GetEssenceType() const { return mEssenceType; }
 
     AS02Track* GetAS02Track()       const { return mAS02Track; }
-    AS11Track* GetAS11Track()       const { return mAS11Track; }
     OP1ATrack* GetOP1ATrack()       const { return mOP1ATrack; }
     AvidTrack* GetAvidTrack()       const { return mAvidTrack; }
     D10Track* GetD10Track()         const { return mD10Track; }
+    RDD9Track* GetRDD9Track()       const { return mRDD9Track; }
     WaveTrackWriter* GetWaveTrack() const { return mWaveTrack; }
+    OP1AXMLTrack* GetOP1AXMLTrack() const { return mOP1AXMLTrack; }
+    D10XMLTrack* GetD10XMLTrack()   const { return mD10XMLTrack; }
+    RDD9XMLTrack* GetRDD9XMLTrack() const { return mRDD9XMLTrack; }
 
 private:
     ClipWriterType mClipType;
     EssenceType mEssenceType;
     AS02Track *mAS02Track;
-    AS11Track *mAS11Track;
     OP1ATrack *mOP1ATrack;
     AvidTrack *mAvidTrack;
     D10Track *mD10Track;
+    RDD9Track *mRDD9Track;
     WaveTrackWriter *mWaveTrack;
+    OP1AXMLTrack *mOP1AXMLTrack;
+    D10XMLTrack *mD10XMLTrack;
+    RDD9XMLTrack *mRDD9XMLTrack;
 };
 
 

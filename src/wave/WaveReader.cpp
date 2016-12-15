@@ -220,8 +220,11 @@ uint32_t WaveReader::Read(uint32_t num_samples)
 
         frame->SetSize(read_num_samples * mTracks[i]->GetBlockAlign());
 
+        frame->edit_rate            = mSamplingRate;
         frame->position             = mPosition;
+        frame->track_edit_rate      = mSamplingRate;
         frame->track_position       = mPosition;
+        frame->request_num_samples  = num_samples;
         frame->first_sample_offset  = first_sample_offset;
         frame->num_samples          = read_num_samples;
         frame->file_position        = mDataStartFilePosition + mPosition * mBlockAlign;
@@ -292,9 +295,9 @@ void WaveReader::ReadChunks(bool is_rf64, uint32_t riff_size)
             mInput->Skip(4);
             have_ds64 = true;
         } else if (tag_equals(tag, "fmt ")) {
-            BMX_CHECK(size == 16);
+            BMX_CHECK(size >= 16);
             uint16_t format_category = mInput->ReadUInt16();
-            if (format_category != 1) { // PCM
+            if (!(format_category == 1 || format_category == 0xFFFE)) { // PCM
                 log_error("Unsupported non-PCM Wave format category 0x%04x\n", format_category);
                 throw false;
             }
@@ -306,6 +309,8 @@ void WaveReader::ReadChunks(bool is_rf64, uint32_t riff_size)
             mChannelBlockAlign = mBlockAlign / mChannelCount;
             mQuantizationBits = mInput->ReadUInt16();
             BMX_CHECK((mQuantizationBits + 7) / 8 * mChannelCount == mBlockAlign);
+            if (size > 16)
+                mInput->Skip(size - 16);
             have_fmt = true;
         } else if (tag_equals(tag, "fact")) {
             BMX_CHECK(size == 4);
@@ -350,10 +355,10 @@ void WaveReader::ReadChunks(bool is_rf64, uint32_t riff_size)
     int64_t data_sample_count = (int64_t)(mBlockAlign > 0 ? actual_data_size / mBlockAlign : 0);
     if (have_fact) {
         if (mSampleCount > data_sample_count) {
-            log_warn("Missing %"PRId64" samples in Wave data chunk\n", mSampleCount - data_sample_count);
+            log_warn("Missing %" PRId64 " samples in Wave data chunk\n", mSampleCount - data_sample_count);
             mSampleCount = data_sample_count;
         } else if (mSampleCount < data_sample_count) {
-            log_warn("Wave data chunk size %"PRIu64" is larger than expected %"PRIu64"\n",
+            log_warn("Wave data chunk size %" PRIu64 " is larger than expected %" PRIu64 "\n",
                      actual_data_size, mSampleCount * mBlockAlign);
         }
     } else {

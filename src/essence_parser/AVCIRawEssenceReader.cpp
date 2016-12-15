@@ -44,10 +44,10 @@ using namespace bmx;
 
 
 
-AVCIRawEssenceReader::AVCIRawEssenceReader(FILE *raw_input)
-: RawEssenceReader(raw_input)
+AVCIRawEssenceReader::AVCIRawEssenceReader(EssenceSource *essence_source)
+: RawEssenceReader(essence_source)
 {
-    SetEssenceParser(new AVCIEssenceParser());
+    SetEssenceParser(new AVCEssenceParser());
     mLastSampleSize = 0;
 }
 
@@ -83,9 +83,7 @@ uint32_t AVCIRawEssenceReader::ReadSamples(uint32_t num_samples)
     }
 
 
-    mAVCIParser->ParseFrameInfo(mSampleBuffer.GetBytes(), mSampleBuffer.GetSize());
-
-    if (mAVCIParser->HaveSequenceParameterSet()) {
+    if (mAVCParser->CheckFrameHasAVCIHeader(mSampleBuffer.GetBytes(), mSampleBuffer.GetSize())) {
         if (mSampleBuffer.GetSize() < mFixedSampleSize) {
             if (ReadBytes(AVCI_HEADER_SIZE) != AVCI_HEADER_SIZE) {
                 mLastSampleRead = true;
@@ -105,7 +103,7 @@ uint32_t AVCIRawEssenceReader::ReadSamples(uint32_t num_samples)
 
 void AVCIRawEssenceReader::SetEssenceParser(EssenceParser *essence_parser)
 {
-    BMX_CHECK(dynamic_cast<AVCIEssenceParser*>(essence_parser));
+    BMX_CHECK(dynamic_cast<AVCEssenceParser*>(essence_parser));
 
     if (mEssenceParser) {
         delete mEssenceParser;
@@ -113,6 +111,6 @@ void AVCIRawEssenceReader::SetEssenceParser(EssenceParser *essence_parser)
     }
 
     RawEssenceReader::SetEssenceParser(essence_parser);
-    mAVCIParser = dynamic_cast<AVCIEssenceParser*>(essence_parser);
+    mAVCParser = dynamic_cast<AVCEssenceParser*>(essence_parser);
 }
 

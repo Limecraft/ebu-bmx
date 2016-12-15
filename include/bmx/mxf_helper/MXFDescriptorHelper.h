@@ -29,13 +29,21 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_DESCRIPTOR_HELPER_H__
-#define __BMX_MXF_DESCRIPTOR_HELPER_H__
+#ifndef BMX_MXF_DESCRIPTOR_HELPER_H_
+#define BMX_MXF_DESCRIPTOR_HELPER_H_
 
 
 #include <libMXF++/MXF.h>
 
 #include <bmx/EssenceType.h>
+
+
+#define MXFDESC_SMPTE_377_2004_FLAVOUR        0x0001
+#define MXFDESC_SMPTE_377_1_FLAVOUR           0x0002
+#define MXFDESC_AVID_FLAVOUR                  0x0004
+#define MXFDESC_RDD9_FLAVOUR                  0x0008
+#define MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR   0x0010
+#define MXFDESC_RDD9_AS10_FLAVOUR             0x0020
 
 
 
@@ -45,14 +53,6 @@ namespace bmx
 
 class MXFDescriptorHelper
 {
-public:
-    typedef enum
-    {
-        SMPTE_377_2004_FLAVOUR,
-        SMPTE_377_1_FLAVOUR,
-        AVID_FLAVOUR,
-    } DescriptorFlavour;
-
 public:
     static EssenceType IsSupported(mxfpp::FileDescriptor *file_descriptor, mxfUL alternative_ec_label);
     static MXFDescriptorHelper* Create(mxfpp::FileDescriptor *file_descriptor, uint16_t mxf_version,
@@ -69,6 +69,7 @@ public:
 
     virtual bool IsPicture() const { return false; }
     virtual bool IsSound() const { return false; }
+    virtual bool IsData() const { return false; }
 
 public:
     // initialize from existing descriptor
@@ -79,10 +80,11 @@ public:
     virtual void SetEssenceType(EssenceType essence_type);  // default depends on sub-class
     virtual void SetSampleRate(mxfRational sample_rate);    // default 25/1
     virtual void SetFrameWrapped(bool frame_wrapped);       // default true; clip wrapped if false
-    virtual void SetFlavour(DescriptorFlavour flavour);     // default SMPTE_377_2004_FLAVOUR
+    virtual void SetFlavour(int flavour);                   // default MXFDESC_SMPTE_377_2004_FLAVOUR
 
     virtual mxfpp::FileDescriptor* CreateFileDescriptor(mxfpp::HeaderMetadata *header_metadata) = 0;
     virtual void UpdateFileDescriptor();
+    virtual void UpdateFileDescriptor(mxfpp::FileDescriptor *file_desc_in) { (void)file_desc_in; };
 
 public:
     EssenceType GetEssenceType() const { return mEssenceType; }
@@ -101,7 +103,7 @@ protected:
     EssenceType mEssenceType;
     mxfRational mSampleRate;
     bool mFrameWrapped;
-    DescriptorFlavour mFlavour;
+    int mFlavour;
 
     mxfpp::FileDescriptor *mFileDescriptor;
 };

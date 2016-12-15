@@ -71,7 +71,7 @@ static const D10SampleRateSupport D10_SAMPLE_RATE_SUPPORT[] =
 bool D10Track::IsSupported(EssenceType essence_type, mxfRational sample_rate)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(D10_SAMPLE_RATE_SUPPORT); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(D10_SAMPLE_RATE_SUPPORT); i++) {
         if (essence_type == D10_SAMPLE_RATE_SUPPORT[i].essence_type) {
             size_t j = 0;
             while (D10_SAMPLE_RATE_SUPPORT[i].sample_rate[j].numerator) {
@@ -114,7 +114,7 @@ D10Track::D10Track(D10File *file, uint32_t track_index, mxfRational frame_rate, 
 
     mEssenceType = essence_type;
     mDescriptorHelper = MXFDescriptorHelper::Create(essence_type);
-    mDescriptorHelper->SetFlavour(MXFDescriptorHelper::SMPTE_377_2004_FLAVOUR);
+    mDescriptorHelper->SetFlavour(MXFDESC_SMPTE_377_2004_FLAVOUR);
     mDescriptorHelper->SetFrameWrapped(true);
     mDescriptorHelper->SetSampleRate(frame_rate);
 }
@@ -150,5 +150,12 @@ void D10Track::WriteSamplesInt(const unsigned char *data, uint32_t size, uint32_
     BMX_ASSERT(data && size && num_samples);
 
     mCPManager->WriteSamples(mTrackIndex, data, size, num_samples);
+}
+
+void D10Track::WriteSampleInt(const CDataBuffer *data_array, uint32_t array_size)
+{
+    BMX_CHECK(data_array && array_size);
+
+    mCPManager->WriteSample(mTrackIndex, data_array, array_size);
 }
 

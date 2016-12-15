@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_D10_FILE_H__
-#define __BMX_D10_FILE_H__
+#ifndef BMX_D10_FILE_H_
+#define BMX_D10_FILE_H_
 
 #include <vector>
 
@@ -39,9 +39,11 @@
 #include <bmx/d10_mxf/D10Track.h>
 #include <bmx/d10_mxf/D10MPEGTrack.h>
 #include <bmx/d10_mxf/D10PCMTrack.h>
+#include <bmx/d10_mxf/D10XMLTrack.h>
 #include <bmx/mxf_helper/MXFFileFactory.h>
+#include <bmx/mxf_helper/UniqueIdHelper.h>
 #include <bmx/BMXTypes.h>
-#include <bmx/MXFUtils.h>
+#include <bmx/MXFChecksumFile.h>
 
 
 #define D10_DEFAULT_FLAVOUR                 0x0000
@@ -80,6 +82,7 @@ public:
 
 public:
     D10Track* CreateTrack(EssenceType essence_type);
+    D10XMLTrack* CreateXMLTrack();
 
 public:
     void PrepareHeaderMetadata();
@@ -104,6 +107,9 @@ public:
     D10Track* GetTrack(uint32_t track_index);
 
     std::string GetMD5DigestStr() const { return mMD5DigestStr; }
+
+    UniqueIdHelper* GetTrackIdHelper()  { return &mTrackIdHelper; }
+    UniqueIdHelper* GetStreamIdHelper() { return &mStreamIdHelper; }
 
 private:
     D10ContentPackageManager* GetContentPackageManager() const { return mCPManager; }
@@ -137,12 +143,13 @@ private:
     std::map<uint32_t, D10Track*> mTrackMap;
     D10MPEGTrack *mPictureTrack;
     D10PCMTrack *mFirstSoundTrack;
+    std::vector<D10XMLTrack*> mXMLTracks;
 
     mxfUL mEssenceContainerUL;
 
     mxfpp::DataModel *mDataModel;
     mxfpp::HeaderMetadata *mHeaderMetadata;
-    int64_t mCBEIndexTableStartPos;
+    int64_t mHeaderMetadataEndPos;
 
     mxfpp::MaterialPackage *mMaterialPackage;
     mxfpp::SourcePackage *mFileSourcePackage;
@@ -150,8 +157,14 @@ private:
     D10ContentPackageManager *mCPManager;
     mxfpp::IndexTableSegment *mIndexSegment;
 
-    MXFMD5WrapperFile *mMXFMD5WrapperFile;
+    bool mFirstWrite;
+    bool mRequireBodyPartition;
+
+    MXFChecksumFile *mMXFChecksumFile;
     std::string mMD5DigestStr;
+
+    UniqueIdHelper mTrackIdHelper;
+    UniqueIdHelper mStreamIdHelper;
 };
 
 

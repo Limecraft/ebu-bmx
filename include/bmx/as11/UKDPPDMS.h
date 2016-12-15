@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_UK_DPP_DMS_H__
-#define __BMX_UK_DPP_DMS_H__
+#ifndef BMX_UK_DPP_DMS_H_
+#define BMX_UK_DPP_DMS_H_
 
 
 #include <libMXF++/DataModel.h>
@@ -63,7 +63,7 @@ namespace bmx
 class UKDPPDMS
 {
 public:
-    static void RegisterExtensions(mxfpp::DataModel *data_model);
+    static void RegisterExtensions(mxfpp::HeaderMetadata *header_metadata);
 };
 
 

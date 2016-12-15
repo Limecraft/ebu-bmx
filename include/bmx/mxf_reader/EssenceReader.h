@@ -29,11 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_ESSENCE_READER_H__
-#define __BMX_ESSENCE_READER_H__
+#ifndef BMX_ESSENCE_READER_H_
+#define BMX_ESSENCE_READER_H_
 
 
 #include <vector>
+#include <deque>
 
 #include <bmx/frame/Frame.h>
 #include <bmx/mxf_reader/FrameMetadataReader.h>
@@ -49,35 +50,100 @@ namespace bmx
 class MXFFileReader;
 
 
+class EssenceReaderBuffer
+{
+public:
+    EssenceReaderBuffer(MXFFileReader *file_reader);
+    ~EssenceReaderBuffer();
+
+    void SetBufferFrames(bool enable);
+
+    bool PopOrPrepareRead(int64_t position, uint32_t num_samples, uint32_t *actual_read_num_samples);
+
+    Frame* GetFrame(uint32_t track_index);
+    void PushFrames(uint32_t actual_read_num_samples);
+
+    size_t GetBufferSize() const { return mRequestSampleCounts.size(); }
+
+private:
+    Frame* TakeFrame(uint32_t track_index);
+
+    size_t GetFrameBufferOffset(int64_t position);
+
+    void Clear();
+    void ClearBeforeFrames(size_t offset);
+    void ClearAtAndBeforeFrames(size_t offset) { return ClearBeforeFrames(offset + 1); }
+    void ClearFromFrame(size_t offset);
+
+private:
+    MXFFileReader *mFileReader;
+    std::vector<std::deque<Frame*> > mTrackFrames;
+    std::deque<uint32_t> mRequestSampleCounts;
+    std::deque<uint32_t> mReadSampleCounts;
+    int64_t mStartPosition;
+    size_t mCurrentFrame;
+    bool mBufferFrames;
+};
+
+
 class EssenceReader
 {
 public:
-    EssenceReader(MXFFileReader *file_reader);
+    EssenceReader(MXFFileReader *file_reader, bool file_is_complete);
     ~EssenceReader();
 
     void SetReadLimits(int64_t start_position, int64_t duration);
+    void SetBufferFrames(bool enable);
 
     uint32_t Read(uint32_t num_samples);
     void Seek(int64_t position);
 
-    mxfRational GetEditRate();
-    int64_t GetPosition() { return mPosition; }
-
+    mxfRational GetEditRate() const    { return mIndexTableHelper.GetEditRate(); };
+    int64_t GetPosition() const        { return mPosition; }
     int64_t GetIndexedDuration() const { return mIndexTableHelper.GetDuration(); }
+
     bool GetIndexEntry(MXFIndexEntryExt *entry, int64_t position);
 
     int64_t LegitimisePosition(int64_t position);
 
-private:
-    void ReadClipWrappedSamples(uint32_t num_samples);
-    void ReadFrameWrappedSamples(uint32_t num_samples);
+    bool IsComplete() const;
 
-    void GetEditUnit(int64_t position, int64_t *file_position, int64_t *size);
-    void GetEditUnitGroup(int64_t position, uint32_t max_samples, int64_t *file_position, int64_t *size,
-                          uint32_t *num_samples);
+private:
+    uint32_t ReadClipWrappedSamples(uint32_t num_samples);
+    uint32_t ReadFrameWrappedSamples(uint32_t num_samples);
+
+    void GetEditUnit(int64_t position, mxfKey *element_key, int64_t *file_position, int64_t *size);
+    void GetEditUnitGroup(int64_t position, uint32_t max_samples, mxfKey *element_key, int64_t *file_position,
+                          int64_t *size, uint32_t *num_samples);
+
+    uint32_t GetConstantEditUnitSize();
+
+private:
+    bool SeekEssence(int64_t base_position);
+    bool ReadEssenceKL(bool first_element, mxfKey *key, uint8_t *llen, uint64_t *len);
+
+private:
+    int64_t GetIndexedFilePosition(int64_t base_position);
+
+    void SetContentPackageStart(int64_t base_position, int64_t file_position, bool pos_at_key);
+
+    bool ReadFirstEssenceKL(mxfKey *key, uint8_t *llen, uint64_t *len);
+    bool ReadNonfirstEssenceKL(mxfKey *key, uint8_t *llen, uint64_t *len);
+    bool SeekContentPackageStart();
+
+    void ReadNextPartition(const mxfKey *key, uint8_t llen, uint64_t len);
+
+    void SetHaveFooter();
+    void SetFileIsComplete();
+
+    void SetNextKL(const mxfKey *key, uint8_t llen, uint64_t len);
+    void ResetNextKL();
+    void ResetState();
 
 private:
     MXFFileReader *mFileReader;
+    mxfpp::File *mFile;
+    bool mFileIsComplete;
 
     EssenceChunkHelper mEssenceChunkHelper;
     IndexTableHelper mIndexTableHelper;
@@ -90,7 +156,19 @@ private:
     uint32_t mImageStartOffset;
     uint32_t mImageEndOffset;
 
-    std::vector<Frame*> mTrackFrames;
+    EssenceReaderBuffer mReadFrameBuffer;
+
+    int64_t mBasePosition;
+    int64_t mFilePosition;
+    mxfKey mNextKey;
+    uint8_t mNextLLen;
+    uint64_t mNextLen;
+    bool mAtCPStart;
+    mxfKey mEssenceStartKey;
+    int64_t mLastKnownFilePosition;
+    int64_t mLastKnownBasePosition;
+    bool mHaveFooter;
+    bool mBaseReadError;
 };
 
 

@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_FRAME_METADATA_H__
-#define __BMX_MXF_FRAME_METADATA_H__
+#ifndef BMX_MXF_FRAME_METADATA_H_
+#define BMX_MXF_FRAME_METADATA_H_
 
 
 #include <bmx/frame/Frame.h>
@@ -61,6 +61,8 @@ public:
 
     Type GetType() const { return mType; }
 
+    virtual FrameMetadata* Clone() = 0;
+
 private:
     Type mType;
 };
@@ -75,6 +77,8 @@ public:
     bool IsBBCAPPTimecodeArray() const;
     Timecode GetVITC() const;
     Timecode GetLTC() const;
+
+    virtual FrameMetadata* Clone();
 
 public:
     std::vector<SMPTE12MTimecode> mS12MTimecodes;
@@ -91,6 +95,8 @@ public:
     SS1APPChecksum(uint32_t crc32);
     virtual ~SS1APPChecksum();
 
+    virtual FrameMetadata* Clone();
+
 public:
     uint32_t mCRC32;
 };
@@ -102,6 +108,8 @@ class SDTICPSystemMetadata : public FrameMetadata
 public:
     SDTICPSystemMetadata();
     virtual ~SDTICPSystemMetadata();
+
+    virtual FrameMetadata* Clone();
 
 public:
     Rational mCPRate;
@@ -115,6 +123,8 @@ class SDTICPPackageMetadata : public FrameMetadata
 public:
     SDTICPPackageMetadata();
     virtual ~SDTICPPackageMetadata();
+
+    virtual FrameMetadata* Clone();
 
 public:
     bool mHaveUMID;

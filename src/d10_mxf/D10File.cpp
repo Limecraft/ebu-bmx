@@ -40,7 +40,7 @@
 
 #include <bmx/d10_mxf/D10File.h>
 #include <bmx/mxf_helper/MXFDescriptorHelper.h>
-#include <bmx/MD5.h>
+#include <bmx/MXFUtils.h>
 #include <bmx/Version.h>
 #include <bmx/Utils.h>
 #include <bmx/BMXException.h>
@@ -52,13 +52,8 @@ using namespace mxfpp;
 
 
 
-static const uint32_t KAG_SIZE = 0x200;
-
-static const uint32_t INDEX_SID = 1;
-static const uint32_t BODY_SID  = 2;
-
-static const mxfRational AUDIO_SAMPLING_RATE = SAMPLING_RATE_48K;
-
+static const uint32_t KAG_SIZE                = 0x200;
+static const mxfRational AUDIO_SAMPLING_RATE  = SAMPLING_RATE_48K;
 static const uint32_t MEMORY_WRITE_CHUNK_SIZE = 8192;
 
 
@@ -85,7 +80,7 @@ static const EssenceContainerULTable ESS_CONTAINER_UL_TABLE[] =
 static mxfUL get_essence_container_ul(EssenceType essence_type, mxfRational frame_rate)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(ESS_CONTAINER_UL_TABLE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(ESS_CONTAINER_UL_TABLE); i++) {
         if (ESS_CONTAINER_UL_TABLE[i].essence_type == essence_type &&
             ESS_CONTAINER_UL_TABLE[i].frame_rate == frame_rate)
         {
@@ -123,16 +118,27 @@ D10File::D10File(int flavour, mxfpp::File *mxf_file, mxfRational frame_rate)
     memset(&mEssenceContainerUL, 0, sizeof(mEssenceContainerUL));
     mDataModel = 0;
     mHeaderMetadata = 0;
-    mCBEIndexTableStartPos = 0;
+    mHeaderMetadataEndPos = 0;
     mMaterialPackage = 0;
     mFileSourcePackage = 0;
     mCPManager = new D10ContentPackageManager(frame_rate);
     mIndexSegment = 0;
-    mMXFMD5WrapperFile = 0;
+    mFirstWrite = true;
+    mRequireBodyPartition = false;
+    mMXFChecksumFile = 0;
+
+    mTrackIdHelper.SetId("TimecodeTrack", 1);
+    mTrackIdHelper.SetId("PictureTrack",  2);
+    mTrackIdHelper.SetId("SoundTrack",    3);
+    mTrackIdHelper.SetStartId(XML_TRACK_TYPE, 9001);
+
+    mStreamIdHelper.SetId("IndexStream", 1);
+    mStreamIdHelper.SetId("BodyStream",  2);
+    mStreamIdHelper.SetStartId(GENERIC_STREAM_TYPE, 10);
 
     if (flavour & D10_SINGLE_PASS_MD5_WRITE_FLAVOUR) {
-        mMXFMD5WrapperFile = md5_wrap_mxf_file(mMXFFile->getCFile());
-        mMXFFile->swapCFile(md5_wrap_get_file(mMXFMD5WrapperFile));
+        mMXFChecksumFile = mxf_checksum_file_open(mMXFFile->getCFile(), MD5_CHECKSUM);
+        mMXFFile->swapCFile(mxf_checksum_file_get_file(mMXFChecksumFile));
     }
 }
 
@@ -141,6 +147,8 @@ D10File::~D10File()
     size_t i;
     for (i = 0; i < mTracks.size(); i++)
         delete mTracks[i];
+    for (i = 0; i < mXMLTracks.size(); i++)
+        delete mXMLTracks[i];
 
     delete mMXFFile;
     delete mDataModel;
@@ -236,6 +244,16 @@ D10Track* D10File::CreateTrack(EssenceType essence_type)
     return mTracks.back();
 }
 
+D10XMLTrack* D10File::CreateXMLTrack()
+{
+    uint32_t track_id    = mTrackIdHelper.GetNextId(XML_TRACK_TYPE);
+    uint32_t track_index = (uint32_t)mTracks.size();
+    uint32_t stream_id   = mStreamIdHelper.GetNextId(GENERIC_STREAM_TYPE);
+
+    mXMLTracks.push_back(new D10XMLTrack(this, track_index, track_id, stream_id));
+    return mXMLTracks.back();
+}
+
 void D10File::PrepareHeaderMetadata()
 {
     if (mHeaderMetadata)
@@ -260,6 +278,7 @@ void D10File::PrepareHeaderMetadata()
         mTracks[i]->PrepareWrite();
 
     mCPManager->SetEssenceContainerUL(mEssenceContainerUL);
+    mCPManager->SetStartTimecode(mStartTimecode);
     mCPManager->PrepareWrite();
 
     CreateHeaderMetadata();
@@ -291,8 +310,21 @@ void D10File::WriteSamples(uint32_t track_index, const unsigned char *data, uint
 
     GetTrack(track_index)->WriteSamplesInt(data, size, num_samples);
 
-    while (mCPManager->HaveContentPackage())
+    while (mCPManager->HaveContentPackage()) {
+        if (mFirstWrite && mRequireBodyPartition) {
+            if (mInputDuration >= 0)
+                BMX_EXCEPTION(("XML track's Generic Stream partition is currently incompatible with single pass flavours"));
+
+            Partition &ess_partition = mMXFFile->createPartition();
+            ess_partition.setKey(&MXF_PP_K(OpenComplete, Body));
+            ess_partition.setBodySID(mStreamIdHelper.GetId("BodyStream"));
+            ess_partition.write(mMXFFile);
+
+            mFirstWrite = false;
+        }
+
         mCPManager->WriteNextContentPackage(mMXFFile);
+    }
 }
 
 void D10File::CompleteWrite()
@@ -305,13 +337,13 @@ void D10File::CompleteWrite()
 
     if (mInputDuration >= 0) {
         BMX_CHECK_M(mCPManager->GetDuration() == mInputDuration,
-                    ("Single pass write failed because D10 output duration %"PRId64" "
-                     "does not equal set input duration %"PRId64,
+                    ("Single pass write failed because D10 output duration %" PRId64 " "
+                     "does not equal set input duration %" PRId64,
                      mCPManager->GetDuration(), mInputDuration));
 
         BMX_CHECK_M(mMXFFile->tell() == (int64_t)mMXFFile->getPartition(0).getFooterPartition(),
-                    ("Single pass write failed because footer partition offset %"PRId64" "
-                     "is not at expected offset %"PRId64,
+                    ("Single pass write failed because footer partition offset %" PRId64 " "
+                     "is not at expected offset %" PRId64,
                      mMXFFile->tell(), mMXFFile->getPartition(0).getFooterPartition()));
     }
 
@@ -323,7 +355,11 @@ void D10File::CompleteWrite()
     footer_partition.setIndexSID(0);
     footer_partition.setBodySID(0);
     footer_partition.write(mMXFFile);
-    footer_partition.fillToKag(mMXFFile);
+
+
+    // write the RIP
+
+    mMXFFile->writeRIP();
 
 
     if (mInputDuration < 0) {
@@ -342,38 +378,46 @@ void D10File::CompleteWrite()
         // update and re-write the header partition pack
 
         Partition &header_partition = mMXFFile->getPartition(0);
+        header_partition.setKey(&MXF_PP_K(ClosedComplete, Header));
         header_partition.setFooterPartition(footer_partition.getThisPartition());
         header_partition.write(mMXFFile);
-        header_partition.fillToKag(mMXFFile);
 
 
         // re-write the header metadata
 
-        KAGFillerWriter reserve_filler_writer(&header_partition, mReserveMinBytes);
-        mHeaderMetadata->write(mMXFFile, &header_partition, &reserve_filler_writer);
+        PositionFillerWriter pos_filler_writer(mHeaderMetadataEndPos);
+        mHeaderMetadata->write(mMXFFile, &header_partition, &pos_filler_writer);
 
 
         // update and re-write the index table segment
 
         mIndexSegment->setIndexDuration(GetDuration());
-        KAGFillerWriter kag_filler_writer(&header_partition);
-        mIndexSegment->write(mMXFFile, &header_partition, &kag_filler_writer);
+        mIndexSegment->write(mMXFFile, &header_partition, 0);
 
 
         // update partition pack and flush memory writes to file
 
-        header_partition.setKey(&MXF_PP_K(ClosedComplete, Header));
         mMXFFile->updatePartitions();
         mMXFFile->closeMemoryFile();
+
+
+        // re-write the generic stream partition packs
+
+        mMXFFile->updateGenericStreamPartitions();
+
+
+        // update body partition status and re-write the partition packs
+
+        if (mRequireBodyPartition)
+            mMXFFile->updateBodyPartitions(&MXF_PP_K(ClosedComplete, Body));
     }
 
 
     // finalize md5
 
-    if (mMXFMD5WrapperFile) {
-        unsigned char digest[16];
-        md5_wrap_finalize(mMXFMD5WrapperFile, digest);
-        mMD5DigestStr = md5_digest_str(digest);
+    if (mMXFChecksumFile) {
+        mxf_checksum_file_final(mMXFChecksumFile);
+        mMD5DigestStr = mxf_checksum_file_digest_str(mMXFChecksumFile);
     }
 
 
@@ -404,13 +448,20 @@ void D10File::CreateHeaderMetadata()
     preface->setVersion(MXF_PREFACE_VER(1, 2));
     preface->setOperationalPattern(MXF_OP_L(1a, MultiTrack_Stream_Internal));
     preface->appendEssenceContainers(mEssenceContainerUL);
-    preface->setDMSchemes(vector<mxfUL>());
+    if (mXMLTracks.empty())
+        preface->setDMSchemes(vector<mxfUL>());
+    else
+        preface->appendDMSchemes(MXF_DM_L(RP2057));
 
     // Preface - Identification
     Identification *ident = new Identification(mHeaderMetadata);
     preface->appendIdentifications(ident);
     ident->initialise(mCompanyName, mProductName, mVersionString, mProductUID);
-    ident->setProductVersion(mProductVersion);
+    if (mProductVersion.major != 0 || mProductVersion.minor != 0 || mProductVersion.patch != 0 ||
+        mProductVersion.build != 0 || mProductVersion.release != 0)
+    {
+        ident->setProductVersion(mProductVersion);
+    }
     ident->setModificationDate(mCreationDate);
     ident->setThisGenerationUID(mGenerationUID);
 
@@ -422,8 +473,8 @@ void D10File::CreateHeaderMetadata()
     EssenceContainerData *ess_container_data = new EssenceContainerData(mHeaderMetadata);
     content_storage->appendEssenceContainerData(ess_container_data);
     ess_container_data->setLinkedPackageUID(mFileSourcePackageUID);
-    ess_container_data->setIndexSID(INDEX_SID);
-    ess_container_data->setBodySID(BODY_SID);
+    ess_container_data->setIndexSID(mStreamIdHelper.GetId("IndexStream"));
+    ess_container_data->setBodySID(mStreamIdHelper.GetId("BodyStream"));
 
     // Preface - ContentStorage - MaterialPackage
     mMaterialPackage = new MaterialPackage(mHeaderMetadata);
@@ -438,7 +489,7 @@ void D10File::CreateHeaderMetadata()
     Track *timecode_track = new Track(mHeaderMetadata);
     mMaterialPackage->appendTracks(timecode_track);
     timecode_track->setTrackName("TC1");
-    timecode_track->setTrackID(1);
+    timecode_track->setTrackID(mTrackIdHelper.GetId("TimecodeTrack"));
     timecode_track->setTrackNumber(0);
     timecode_track->setEditRate(mFrameRate);
     timecode_track->setOrigin(0);
@@ -496,13 +547,14 @@ void D10File::CreateHeaderMetadata()
     {
         bool is_picture = (i == 0);
         mxfUL data_def = (is_picture ? MXF_DDEF_L(Picture) : MXF_DDEF_L(Sound));
-        string track_name = get_track_name(is_picture, is_picture ? 1 : i);
+        string track_name = get_track_name((is_picture ? MXF_PICTURE_DDEF : MXF_SOUND_DDEF), (is_picture ? 1 : i));
+        uint32_t track_id = (is_picture ? mTrackIdHelper.GetId("PictureTrack") : mTrackIdHelper.GetId("SoundTrack"));
 
         // Preface - ContentStorage - MaterialPackage - Timeline Track
         Track *track = new Track(mHeaderMetadata);
         mMaterialPackage->appendTracks(track);
         track->setTrackName(track_name);
-        track->setTrackID(i + 2);
+        track->setTrackID(track_id);
         track->setTrackNumber(0);
         track->setEditRate(mFrameRate);
         track->setOrigin(0);
@@ -526,7 +578,7 @@ void D10File::CreateHeaderMetadata()
         track = new Track(mHeaderMetadata);
         mFileSourcePackage->appendTracks(track);
         track->setTrackName(track_name);
-        track->setTrackID(i + 2);
+        track->setTrackID(track_id);
         track->setTrackNumber(is_picture ? MXF_D10_PICTURE_TRACK_NUM(0x00) : MXF_D10_SOUND_TRACK_NUM(0x00));
         track->setEditRate(mFrameRate);
         track->setOrigin(0);
@@ -559,7 +611,7 @@ void D10File::CreateHeaderMetadata()
     CDCIEssenceDescriptor *cdci_descriptor =
         dynamic_cast<CDCIEssenceDescriptor*>(mPictureTrack->CreateFileDescriptor(mHeaderMetadata));
     mult_descriptor->appendSubDescriptorUIDs(cdci_descriptor);
-    cdci_descriptor->setLinkedTrackID(2);
+    cdci_descriptor->setLinkedTrackID(mTrackIdHelper.GetId("PictureTrack"));
     cdci_descriptor->setEssenceContainer(mEssenceContainerUL);
     if (mInputDuration >= 0)
         cdci_descriptor->setContainerDuration(mInputDuration);
@@ -567,7 +619,7 @@ void D10File::CreateHeaderMetadata()
     // Preface - ContentStorage - SourcePackage - MultipleDescriptor - GenericSoundEssenceDescriptor
     GenericSoundEssenceDescriptor *sound_descriptor = new GenericSoundEssenceDescriptor(mHeaderMetadata);
     mult_descriptor->appendSubDescriptorUIDs(sound_descriptor);
-    sound_descriptor->setLinkedTrackID(3);
+    sound_descriptor->setLinkedTrackID(mTrackIdHelper.GetId("SoundTrack"));
     sound_descriptor->setSampleRate(mFrameRate);
     sound_descriptor->setEssenceContainer(mEssenceContainerUL);
     if (mInputDuration >= 0)
@@ -585,11 +637,28 @@ void D10File::CreateHeaderMetadata()
         sound_descriptor->setChannelCount(mCPManager->GetSoundChannelCount());
         sound_descriptor->setQuantizationBits(16);
     }
+
+    for (i = 0; i < mXMLTracks.size(); i++)
+        mXMLTracks[i]->AddHeaderMetadata(mHeaderMetadata, mMaterialPackage);
 }
 
 void D10File::CreateFile()
 {
     BMX_ASSERT(mHeaderMetadata);
+
+    // check whether a body partition is required
+
+    mRequireBodyPartition = false;
+    size_t i;
+    for (i = 0; i < mXMLTracks.size(); i++) {
+        D10XMLTrack *xml_track = mXMLTracks[i];
+        if (xml_track->RequireStreamPartition()) {
+            if (mInputDuration >= 0)
+                BMX_EXCEPTION(("XML track's Generic Stream partition is currently incompatible with single pass flavours"));
+            mRequireBodyPartition = true;
+            break;
+        }
+    }
 
 
     // set minimum llen
@@ -610,16 +679,19 @@ void D10File::CreateFile()
     else
         header_partition.setKey(&MXF_PP_K(OpenIncomplete, Header));
     header_partition.setVersion(1, 2);  // v1.2 - smpte 377-2004
-    header_partition.setIndexSID(INDEX_SID);
-    header_partition.setBodySID(BODY_SID);
+    header_partition.setIndexSID(mStreamIdHelper.GetId("IndexStream"));
+    if (mRequireBodyPartition)
+        header_partition.setBodySID(0);
+    else
+        header_partition.setBodySID(mStreamIdHelper.GetId("BodyStream"));
     header_partition.setKagSize(KAG_SIZE);
     header_partition.setOperationalPattern(&MXF_OP_L(1a, MultiTrack_Stream_Internal));
     header_partition.addEssenceContainer(&mEssenceContainerUL);
     header_partition.write(mMXFFile);
-    header_partition.fillToKag(mMXFFile);
 
     KAGFillerWriter reserve_filler_writer(&header_partition, mReserveMinBytes);
     mHeaderMetadata->write(mMXFFile, &header_partition, &reserve_filler_writer);
+    mHeaderMetadataEndPos = mMXFFile->tell();  // need this position when we re-write the header metadata
 
 
     // write cbe index table
@@ -631,17 +703,15 @@ void D10File::CreateFile()
     mIndexSegment->setInstanceUID(uuid);
     mIndexSegment->setIndexEditRate(mFrameRate);
     mIndexSegment->setIndexDuration(mInputDuration >= 0 ? mInputDuration : 0);
-    mIndexSegment->setIndexSID(INDEX_SID);
-    mIndexSegment->setBodySID(BODY_SID);
+    mIndexSegment->setIndexSID(mStreamIdHelper.GetId("IndexStream"));
+    mIndexSegment->setBodySID(mStreamIdHelper.GetId("BodyStream"));
 
     const std::vector<uint32_t> &ext_delta_entries = mCPManager->GetExtDeltaEntryArray();
-    size_t i;
     for (i = 0; i < ext_delta_entries.size(); i++)
         mIndexSegment->appendDeltaEntry(0, 0, ext_delta_entries[i]);
     mIndexSegment->setEditUnitByteCount(mCPManager->GetContentPackageSize());
 
-    KAGFillerWriter kag_filler_writer(&mMXFFile->getPartition(0));
-    mIndexSegment->write(mMXFFile, &mMXFFile->getPartition(0), &kag_filler_writer);
+    mIndexSegment->write(mMXFFile, &mMXFFile->getPartition(0), 0);
 
 
     // update partition pack and flush memory writes to file
@@ -651,6 +721,23 @@ void D10File::CreateFile()
 
     mMXFFile->updatePartitions();
     mMXFFile->closeMemoryFile();
+
+
+    // write generic stream partitions
+
+    for (i = 0; i < mXMLTracks.size(); i++) {
+        D10XMLTrack *xml_track = mXMLTracks[i];
+        if (xml_track->RequireStreamPartition()) {
+            if (mInputDuration >= 0)
+                BMX_EXCEPTION(("XML track's Generic Stream partition is currently incompatible with single pass flavours"));
+
+            Partition &stream_partition = mMXFFile->createPartition();
+            stream_partition.setKey(&MXF_GS_PP_K(GenericStream));
+            stream_partition.setBodySID(xml_track->GetStreamId());
+            stream_partition.write(mMXFFile);
+            xml_track->WriteStreamXMLData(mMXFFile);
+        }
+    }
 }
 
 void D10File::UpdatePackageMetadata()

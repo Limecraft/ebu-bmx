@@ -55,9 +55,12 @@ FrameMetadata::~FrameMetadata()
 
 Frame::Frame()
 {
+    edit_rate = ZERO_RATIONAL;
     position = NULL_FRAME_POSITION;
+    track_edit_rate = ZERO_RATIONAL;
     track_position = NULL_FRAME_POSITION;
     ec_position = NULL_FRAME_POSITION;
+    request_num_samples = 0;
     first_sample_offset = 0;
     num_samples = 0;
     temporal_reordering = false;
@@ -66,6 +69,38 @@ Frame::Frame()
     flags = 0;
     cp_file_position = 0;
     file_position = 0;
+    kl_size = 0;
+    file_id = (size_t)(-1);
+    element_key = g_Null_Key;
+}
+
+Frame::Frame(const Frame &from)
+{
+    edit_rate           = from.edit_rate;
+    position            = from.position;
+    track_edit_rate     = from.track_edit_rate;
+    track_position      = from.track_position;
+    ec_position         = from.ec_position;
+    request_num_samples = from.request_num_samples;
+    first_sample_offset = from.first_sample_offset;
+    num_samples         = from.num_samples;
+    temporal_reordering = from.temporal_reordering;
+    temporal_offset     = from.temporal_offset;
+    key_frame_offset    = from.key_frame_offset;
+    flags               = from.flags;
+    cp_file_position    = from.cp_file_position;
+    file_position       = from.file_position;
+    kl_size             = from.kl_size;
+    file_id             = from.file_id;
+    element_key         = from.element_key;
+
+    map<string, vector<FrameMetadata*> >::const_iterator iter;
+    for (iter = from.mMetadata.begin(); iter != from.mMetadata.end(); iter++) {
+        mMetadata[iter->first] = vector<FrameMetadata*>();
+        size_t i;
+        for (i = 0; i < iter->second.size(); i++)
+            mMetadata[iter->first].push_back(iter->second[i]->Clone());
+    }
 }
 
 Frame::~Frame()
@@ -138,6 +173,10 @@ void DefaultFrame::IncrementSize(uint32_t inc)
     mData.IncrementSize(inc);
 }
 
+Frame* DefaultFrame::Clone()
+{
+    return new DefaultFrame(*this);
+}
 
 
 Frame* DefaultFrameFactory::CreateFrame()

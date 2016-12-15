@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_OP1A_PCM_TRACK_H__
-#define __BMX_OP1A_PCM_TRACK_H__
+#ifndef BMX_OP1A_PCM_TRACK_H_
+#define BMX_OP1A_PCM_TRACK_H_
 
 #include <bmx/mxf_op1a/OP1ATrack.h>
 #include <bmx/mxf_helper/WaveMXFDescriptorHelper.h>
@@ -48,6 +48,7 @@ public:
                  mxfRational frame_rate, EssenceType essence_type);
     virtual ~OP1APCMTrack();
 
+    void SetAES3Mapping(bool enable);                   // default BWF mapping
     void SetSamplingRate(mxfRational sampling_rate);    // default 48000/1
     void SetQuantizationBits(uint32_t bits);            // default 16
     void SetChannelCount(uint32_t count);               // default 1
@@ -55,14 +56,29 @@ public:
     void SetAudioRefLevel(int8_t level);                // default not set
     void SetDialNorm(int8_t dial_norm);                 // default not set
     void SetSequenceOffset(uint8_t offset);             // default not set
+    void SetChannelAssignment(UL label);                // default not set
+
+    mxfpp::AudioChannelLabelSubDescriptor* AddAudioChannelLabel(
+        mxfpp::AudioChannelLabelSubDescriptor *copy_from = 0);
+    mxfpp::SoundfieldGroupLabelSubDescriptor* AddSoundfieldGroupLabel(
+        mxfpp::SoundfieldGroupLabelSubDescriptor *copy_from = 0);
+    mxfpp::GroupOfSoundfieldGroupsLabelSubDescriptor* AddGroupOfSoundfieldGroupLabel(
+        mxfpp::GroupOfSoundfieldGroupsLabelSubDescriptor *copy_from = 0);
 
 public:
     const std::vector<uint32_t>& GetSampleSequence() const { return mSampleSequence; }
     uint8_t GetSequenceOffset() const { return mWaveDescriptorHelper->GetSequenceOffset(); }
     std::vector<uint32_t> GetShiftedSampleSequence() const;
 
+    const std::vector<mxfpp::MCALabelSubDescriptor*>& GetMCALabels() const { return mMCALabels; }
+
+    uint32_t GetChannelCount() const;
+
 protected:
-    virtual void PrepareWrite(uint8_t picture_track_count, uint8_t sound_track_count);
+    virtual void AddHeaderMetadata(mxfpp::HeaderMetadata *header_metadata, mxfpp::MaterialPackage *material_package,
+                                   mxfpp::SourcePackage *file_source_package);
+
+    virtual void PrepareWrite(uint8_t track_count);
 
 private:
     void SetSampleSequence();
@@ -70,6 +86,7 @@ private:
 private:
     WaveMXFDescriptorHelper *mWaveDescriptorHelper;
     std::vector<uint32_t> mSampleSequence;
+    std::vector<mxfpp::MCALabelSubDescriptor*> mMCALabels;
 };
 
 

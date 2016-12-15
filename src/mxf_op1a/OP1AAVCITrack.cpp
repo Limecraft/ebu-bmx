@@ -34,6 +34,7 @@
 #endif
 
 #include <bmx/mxf_op1a/OP1AAVCITrack.h>
+#include <bmx/mxf_op1a/OP1AFile.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -53,11 +54,12 @@ OP1AAVCITrack::OP1AAVCITrack(OP1AFile *file, uint32_t track_index, uint32_t trac
 {
     mAVCIDescriptorHelper = dynamic_cast<AVCIMXFDescriptorHelper*>(mDescriptorHelper);
     BMX_ASSERT(mAVCIDescriptorHelper);
+    mWriterHelper.SetDescriptorHelper(mAVCIDescriptorHelper);
 
     mTrackNumber = MXF_MPEG_PICT_TRACK_NUM(0x01, MXF_MPEG_PICT_FRAME_WRAPPED_EE_TYPE, 0x00);
     mEssenceElementKey = VIDEO_ELEMENT_KEY;
 
-    mWriterHelper.SetMode(AVCI_ALL_FRAME_HEADER_MODE);
+    SetMode(OP1A_AVCI_ALL_FRAME_HEADER_MODE);
 }
 
 OP1AAVCITrack::~OP1AAVCITrack()
@@ -66,6 +68,9 @@ OP1AAVCITrack::~OP1AAVCITrack()
 
 void OP1AAVCITrack::SetMode(OP1AAVCIMode mode)
 {
+    if ((mOP1AFile->GetFlavour() & OP1A_ARD_ZDF_HDF_PROFILE_FLAVOUR) && mode != OP1A_AVCI_ALL_FRAME_HEADER_MODE)
+        BMX_EXCEPTION(("ARD ZDF HDF flavour requires all AVC-I frames to contain SPS+PPS header data"));
+
     switch (mode)
     {
         case OP1A_AVCI_FIRST_OR_ALL_FRAME_HEADER_MODE:
@@ -77,6 +82,12 @@ void OP1AAVCITrack::SetMode(OP1AAVCIMode mode)
         case OP1A_AVCI_ALL_FRAME_HEADER_MODE:
             mWriterHelper.SetMode(AVCI_ALL_FRAME_HEADER_MODE);
             break;
+        case OP1A_AVCI_NO_OR_ALL_FRAME_HEADER_MODE:
+            mWriterHelper.SetMode(AVCI_NO_OR_ALL_FRAME_HEADER_MODE);
+            break;
+        case OP1A_AVCI_NO_FRAME_HEADER_MODE:
+            mWriterHelper.SetMode(AVCI_NO_FRAME_HEADER_MODE);
+            break;
     }
 }
 
@@ -85,16 +96,24 @@ void OP1AAVCITrack::SetHeader(const unsigned char *data, uint32_t size)
     mWriterHelper.SetHeader(data, size);
 }
 
+void OP1AAVCITrack::SetReplaceHeader(bool enable)
+{
+    mWriterHelper.SetReplaceHeader(enable);
+}
+
+void OP1AAVCITrack::SetUseAVCSubDescriptor(bool enable)
+{
+    mAVCIDescriptorHelper->SetUseAVCSubDescriptor(enable);
+}
+
 uint32_t OP1AAVCITrack::GetSampleWithoutHeaderSize()
 {
     return mAVCIDescriptorHelper->GetSampleWithoutHeaderSize();
 }
 
-void OP1AAVCITrack::PrepareWrite(uint8_t picture_track_count, uint8_t sound_track_count)
+void OP1AAVCITrack::PrepareWrite(uint8_t track_count)
 {
-    (void)sound_track_count;
-
-    CompleteEssenceKeyAndTrackNum(picture_track_count);
+    CompleteEssenceKeyAndTrackNum(track_count);
 
     mCPManager->RegisterAVCITrackElement(mTrackIndex, mEssenceElementKey,
                                          mAVCIDescriptorHelper->GetSampleSize(),
@@ -123,3 +142,9 @@ void OP1AAVCITrack::WriteSamplesInt(const unsigned char *data, uint32_t size, ui
     }
 }
 
+void OP1AAVCITrack::CompleteWrite()
+{
+    mWriterHelper.CompleteProcess();
+
+    OP1APictureTrack::CompleteWrite();
+}

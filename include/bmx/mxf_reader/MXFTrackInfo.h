@@ -29,13 +29,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_TRACK_INFO__
-#define __BMX_MXF_TRACK_INFO__
+#ifndef BMX_MXF_TRACK_INFO_
+#define BMX_MXF_TRACK_INFO_
 
+
+#include <vector>
 
 #include <bmx/BMXTypes.h>
 #include <bmx/EssenceType.h>
 
+
+namespace mxfpp
+{
+    class AudioChannelLabelSubDescriptor;
+};
 
 
 namespace bmx
@@ -53,8 +60,7 @@ public:
     virtual MXFTrackInfo* Clone() const = 0;
 
 public:
-    bool is_picture;
-    bool is_sound;
+    MXFDataDefEnum data_def;
 
     EssenceType essence_type;
     mxfUL essence_container_label;
@@ -92,8 +98,8 @@ public:
     uint32_t stored_height;
     uint32_t display_width;
     uint32_t display_height;
-    uint32_t display_x_offset;
-    uint32_t display_y_offset;
+    BMX_OPT_PROP_DECL(int32_t, display_x_offset);
+    BMX_OPT_PROP_DECL(int32_t, display_y_offset);
     mxfRational aspect_ratio;
     uint8_t frame_layout;
     uint8_t afd;
@@ -103,7 +109,6 @@ public:
     uint32_t horiz_subsampling;
     uint32_t vert_subsampling;
     uint8_t color_siting;
-    uint32_t d10_frame_size;
     bool have_avci_header;
 };
 
@@ -125,12 +130,64 @@ public:
     uint32_t channel_count;
     uint8_t d10_aes3_valid_flags;
     uint8_t sequence_offset;
-    bool locked;
-    bool locked_set;
-    int8_t audio_ref_level;
-    bool audio_ref_level_set;
-    int8_t dial_norm;
-    bool dial_norm_set;
+    BMX_OPT_PROP_DECL(bool, locked);
+    BMX_OPT_PROP_DECL(int8_t, audio_ref_level);
+    BMX_OPT_PROP_DECL(int8_t, dial_norm);
+    UL channel_assignment;
+    std::vector<mxfpp::AudioChannelLabelSubDescriptor*> mca_labels;
+};
+
+
+class ST436Line;
+
+class VBIManifestElement
+{
+public:
+    VBIManifestElement();
+
+    void Parse(const ST436Line *line);
+
+    bool operator==(const VBIManifestElement &right) const;
+
+public:
+    uint16_t line_number;
+    uint8_t wrapping_type;
+    uint8_t sample_coding;
+};
+
+class ANCManifestElement
+{
+public:
+    ANCManifestElement();
+
+    void Parse(const ST436Line *line);
+
+    bool operator==(const ANCManifestElement &right) const;
+
+public:
+    uint16_t line_number;
+    uint8_t wrapping_type;
+    uint8_t sample_coding;
+    uint8_t did;
+    uint8_t sdid;
+};
+
+class MXFDataTrackInfo : public MXFTrackInfo
+{
+public:
+    MXFDataTrackInfo();
+    virtual ~MXFDataTrackInfo() {}
+
+    virtual bool IsCompatible(const MXFTrackInfo *right) const;
+
+    virtual MXFTrackInfo* Clone() const;
+
+    void AppendUniqueVBIElement(const VBIManifestElement &element);
+    void AppendUniqueANCElement(const ANCManifestElement &element);
+
+public:
+    std::vector<VBIManifestElement> vbi_manifest;
+    std::vector<ANCManifestElement> anc_manifest;
 };
 
 

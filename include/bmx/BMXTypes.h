@@ -29,11 +29,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_TYPES_H__
-#define __BMX_TYPES_H__
+#ifndef BMX_TYPES_H_
+#define BMX_TYPES_H_
 
 
 #include <libMXF++/MXFTypes.h>
+
+
+#define BMX_OPT_PROP_DECL(type, name)           type name; bool name##_set
+#define BMX_OPT_PROP_DECL_DEF(type, name, val)  type name = val; bool name##_set = false
+#define BMX_OPT_PROP_IS_SET(prop)               prop##_set
+#define BMX_OPT_PROP_SET(prop, val)             do { prop = val; prop##_set = true; } while (0)
+#define BMX_OPT_PROP_MARK(prop, isset)          prop##_set = isset
+#define BMX_OPT_PROP_DEFAULT(prop, val)         do { prop = val; prop##_set = false; } while (0)
+#define BMX_OPT_PROP_COPY(to, from)             do { to = from; to##_set = from##_set; } while (0)
 
 
 
@@ -47,7 +56,7 @@ typedef enum
     I_FRAME,
     P_FRAME,
     B_FRAME
-} MPEG2FrameType;
+} MPEGFrameType;
 
 typedef enum
 {
@@ -61,9 +70,25 @@ typedef enum
     COLOR_BLACK
 } Color;
 
+typedef enum
+{
+    UNKNOWN_TEXT_ENCODING,
+    UTF16,
+    UTF8,
+} TextEncoding;
+
+typedef enum
+{
+    UNKNOWN_BYTE_ORDER,
+    BMX_BYTE_ORIENTED,
+    BMX_BIG_ENDIAN,
+    BMX_LITTLE_ENDIAN,
+} ByteOrder;
+
 
 typedef mxfRational         Rational;
 typedef mxfTimestamp        Timestamp;
+typedef mxfUL               UL;
 typedef mxfUUID             UUID;
 typedef mxfUMID             UMID;
 typedef mxfExtendedUMID     ExtendedUMID;
@@ -78,8 +103,10 @@ static const Rational FRAME_RATE_23976  = {24000, 1001};
 static const Rational FRAME_RATE_24     = {24, 1};
 static const Rational FRAME_RATE_25     = {25, 1};
 static const Rational FRAME_RATE_2997   = {30000, 1001};
+static const Rational FRAME_RATE_30     = {30, 1};
 static const Rational FRAME_RATE_50     = {50, 1};
 static const Rational FRAME_RATE_5994   = {60000, 1001};
+static const Rational FRAME_RATE_60     = {60, 1};
 
 static const Rational SAMPLING_RATE_48K = {48000, 1};
 
@@ -119,6 +146,7 @@ public:
 
     void AddOffset(int64_t offset);
     void AddOffset(int64_t offset, Rational rate);
+    void AddDuration(bool drop_frame, int16_t hour, int16_t min, int16_t sec, int16_t frame);
 
     int64_t GetMaxOffset() const;
 

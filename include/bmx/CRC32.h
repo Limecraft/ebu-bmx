@@ -29,8 +29,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_CRC32_H__
-#define __BMX_CRC32_H__
+#ifndef BMX_CRC32_H_
+#define BMX_CRC32_H_
+
+#include <cstdio>
 
 #include <string>
 
@@ -49,6 +51,7 @@ void crc32_final(uint32_t *crc32);
 std::string crc32_digest_str(uint32_t crc32);
 
 std::string crc32_calc_file(std::string filename);
+std::string crc32_calc_file(FILE *file);
 
 
 };

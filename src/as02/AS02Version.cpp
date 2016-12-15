@@ -41,6 +41,7 @@
 #include <bmx/as02/AS02Version.h>
 #include <bmx/mxf_helper/MXFDescriptorHelper.h>
 #include <bmx/MXFUtils.h>
+#include <bmx/Utils.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -49,13 +50,6 @@ using namespace bmx;
 using namespace mxfpp;
 
 
-
-static const int HEADER_PARTITION   = 0;
-static const int FOOTER_PARTITION   = 1;
-
-static uint32_t TIMECODE_TRACK_ID       = 901;
-static uint32_t FIRST_VIDEO_TRACK_ID    = 1001;
-static uint32_t FIRST_AUDIO_TRACK_ID    = 2001;
 
 static const char TIMECODE_TRACK_NAME[]     = "Timecode";
 static const char VIDEO_TRACK_NAME_PREFIX[] = "Video";
@@ -66,7 +60,7 @@ static const char AUDIO_TRACK_NAME_PREFIX[] = "Audio";
 static string get_version_track_name(const char *prefix, int count)
 {
     char buffer[32];
-    sprintf(buffer, "%s%d", prefix, count + 1);
+    bmx_snprintf(buffer, sizeof(buffer), "%s%d", prefix, count + 1);
     return buffer;
 }
 
@@ -104,8 +98,11 @@ AS02Version::AS02Version(AS02Bundle *bundle, string filepath, string rel_uri, mx
     mxf_generate_umid(&mMaterialPackageUID);
     mDataModel = 0;
     mHeaderMetadata = 0;
-    mHeaderMetadataStartPos = 0;
     mHeaderMetadataEndPos = 0;
+
+    mTrackIdHelper.SetId(TIMECODE_TRACK_NAME, 901);
+    mTrackIdHelper.SetStartId(MXF_PICTURE_DDEF, 1001);
+    mTrackIdHelper.SetStartId(MXF_SOUND_DDEF,   2001);
 
     mManifestFile = bundle->GetManifest()->RegisterFile(rel_uri, VERSION_FILE_ROLE);
     mManifestFile->SetId(mMaterialPackageUID);
@@ -156,17 +153,31 @@ void AS02Version::CompleteWrite()
 
 
 
+    // re-write header to memory
+
+    mMXFFile->seek(0, SEEK_SET);
+    mMXFFile->openMemoryFile(8192);
+    mMXFFile->setMemoryPartitionIndexes(0, 0); // overwriting and updating from header pp
+
+
+    // update and re-write the header partition pack
+
+    Partition &header_partition = mMXFFile->getPartition(0);
+    header_partition.setKey(&MXF_PP_K(ClosedComplete, Header));
+    header_partition.setFooterPartition(footer_partition.getThisPartition());
+    header_partition.write(mMXFFile);
+
+
     // re-write the header metadata in the header partition
 
-    mMXFFile->seek(mHeaderMetadataStartPos, SEEK_SET);
     PositionFillerWriter pos_filler_writer(mHeaderMetadataEndPos);
-    mHeaderMetadata->write(mMXFFile, &mMXFFile->getPartition(HEADER_PARTITION), &pos_filler_writer);
+    mHeaderMetadata->write(mMXFFile, &header_partition, &pos_filler_writer);
 
 
-    // update and re-write the partition packs
+    // update header partition packs and flush memory writes to file
 
-    mMXFFile->getPartition(HEADER_PARTITION).setKey(&MXF_PP_K(ClosedComplete, Header));
     mMXFFile->updatePartitions();
+    mMXFFile->closeMemoryFile();
 
 
     // done with the file
@@ -202,7 +213,11 @@ void AS02Version::CreateHeaderMetadata()
     Identification *ident = new Identification(mHeaderMetadata);
     preface->appendIdentifications(ident);
     ident->initialise(mCompanyName, mProductName, mVersionString, mProductUID);
-    ident->setProductVersion(mProductVersion);
+    if (mProductVersion.major != 0 || mProductVersion.minor != 0 || mProductVersion.patch != 0 ||
+        mProductVersion.build != 0 || mProductVersion.release != 0)
+    {
+        ident->setProductVersion(mProductVersion);
+    }
     ident->setModificationDate(mCreationDate);
     ident->setThisGenerationUID(mGenerationUID);
 
@@ -223,7 +238,7 @@ void AS02Version::CreateHeaderMetadata()
     Track *timecode_track = new Track(mHeaderMetadata);
     mMaterialPackage->appendTracks(timecode_track);
     timecode_track->setTrackName(TIMECODE_TRACK_NAME);
-    timecode_track->setTrackID(TIMECODE_TRACK_ID);
+    timecode_track->setTrackID(mTrackIdHelper.GetId(TIMECODE_TRACK_NAME));
     timecode_track->setTrackNumber(0);
     timecode_track->setEditRate(mClipFrameRate);
     timecode_track->setOrigin(0);
@@ -252,8 +267,8 @@ void AS02Version::CreateHeaderMetadata()
                                 get_version_track_name(VIDEO_TRACK_NAME_PREFIX, video_count) :
                                 get_version_track_name(AUDIO_TRACK_NAME_PREFIX, audio_count));
         track->setTrackID(mTracks[i]->IsPicture() ?
-                            FIRST_VIDEO_TRACK_ID + video_count :
-                            FIRST_AUDIO_TRACK_ID + audio_count);
+                            mTrackIdHelper.GetNextId(MXF_PICTURE_DDEF) :
+                            mTrackIdHelper.GetNextId(MXF_SOUND_DDEF));
         track->setTrackNumber(mTracks[i]->GetOutputTrackNumber());
         track->setEditRate(mTracks[i]->GetSampleRate());
         track->setOrigin(0);
@@ -307,6 +322,11 @@ void AS02Version::CreateFile()
     mMXFFile->setMinLLen(4);
 
 
+    // write header partition and essence partition pack to memory first
+
+    mMXFFile->openMemoryFile(8192);
+
+
     // write the header partition pack and header metadata
 
     Partition &header_partition = mMXFFile->createPartition();
@@ -317,12 +337,16 @@ void AS02Version::CreateFile()
     header_partition.setKagSize(1);
     header_partition.setOperationalPattern(&MXF_OP_L(1b, UniTrack_NonStream_External));
     header_partition.write(mMXFFile);
-    header_partition.fillToKag(mMXFFile);
 
-    mHeaderMetadataStartPos = mMXFFile->tell(); // need this position when we re-write the header metadata
     KAGFillerWriter reserve_filler_writer(&header_partition, mReserveMinBytes);
     mHeaderMetadata->write(mMXFFile, &header_partition, &reserve_filler_writer);
     mHeaderMetadataEndPos = mMXFFile->tell();  // need this position when we re-write the header metadata
+
+
+    // update partition and flush memory
+
+    mMXFFile->updatePartitions();
+    mMXFFile->closeMemoryFile();
 }
 
 void AS02Version::UpdatePackageMetadata()

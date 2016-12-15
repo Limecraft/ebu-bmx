@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_OP1A_AVCI_TRACK_H__
-#define __BMX_OP1A_AVCI_TRACK_H__
+#ifndef BMX_OP1A_AVCI_TRACK_H_
+#define BMX_OP1A_AVCI_TRACK_H_
 
 #include <bmx/mxf_helper/AVCIMXFDescriptorHelper.h>
 #include <bmx/writer_helper/AVCIWriterHelper.h>
@@ -47,6 +47,8 @@ typedef enum
     OP1A_AVCI_FIRST_OR_ALL_FRAME_HEADER_MODE = 0,
     OP1A_AVCI_FIRST_FRAME_HEADER_MODE,
     OP1A_AVCI_ALL_FRAME_HEADER_MODE,
+    OP1A_AVCI_NO_OR_ALL_FRAME_HEADER_MODE,
+    OP1A_AVCI_NO_FRAME_HEADER_MODE
 } OP1AAVCIMode;
 
 
@@ -59,18 +61,20 @@ public:
 
     void SetMode(OP1AAVCIMode mode);                            // default OP1A_AVCI_ALL_FRAME_HEADER_MODE
     void SetHeader(const unsigned char *data, uint32_t size);
+    void SetReplaceHeader(bool enable);                         // default false; requires SetHeader if true
+    void SetUseAVCSubDescriptor(bool enable);
 
 public:
     uint32_t GetSampleWithoutHeaderSize();
 
 protected:
-    virtual void PrepareWrite(uint8_t picture_track_count, uint8_t sound_track_count);
+    virtual void PrepareWrite(uint8_t track_count);
     virtual void WriteSamplesInt(const unsigned char *data, uint32_t size, uint32_t num_samples);
+    virtual void CompleteWrite();
 
 private:
     AVCIMXFDescriptorHelper *mAVCIDescriptorHelper;
     AVCIWriterHelper mWriterHelper;
-    OP1AAVCIMode mMode;
 };
 
 

@@ -29,13 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_URI_H__
-#define __BMX_URI_H__
+#ifndef BMX_URI_H_
+#define BMX_URI_H_
 
 
 #include <string>
-
-#include <uriparser/Uri.h>
 
 
 #if defined(_WIN32)
@@ -44,6 +42,10 @@
 #else
 #define DIR_SEPARATOR_C     '/'
 #define DIR_SEPARATOR_S     "/"
+#endif
+
+#ifndef BMXURIInternal
+#define BMXURIInternal      void
 #endif
 
 
@@ -68,9 +70,12 @@ public:
     char* GetStr() { return mStr; }
     const char* GetCStr() const { return mStr; }
 
+    bool IsEmpty() const { return (!mStr || !mStr[0]); }
+
 private:
     char *mStr;
 };
+
 
 
 class URI
@@ -109,11 +114,13 @@ public:
     bool operator==(const URI &right) const;
     URI& operator=(const URI &right);
 
+    bool IsEmpty() const { return mSourceStr.IsEmpty(); }
+
 private:
     void Clear();
 
 private:
-    UriUriA mUriUri;
+    BMXURIInternal *mUriUri;
     URIStr mSourceStr;
     bool mWindowsNameConvert;
 };

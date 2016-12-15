@@ -35,6 +35,7 @@
 
 #define __STDC_FORMAT_MACROS
 
+#include <cstdio>
 #include <cstring>
 #include <cerrno>
 #include <sys/types.h>
@@ -44,6 +45,7 @@
 #endif
 
 #include <bmx/essence_parser/RawEssenceReader.h>
+#include <bmx/Utils.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -56,10 +58,9 @@ using namespace bmx;
 
 
 
-RawEssenceReader::RawEssenceReader(FILE *raw_input)
+RawEssenceReader::RawEssenceReader(EssenceSource *essence_source)
 {
-    mRawInput = raw_input;
-    mStartOffset = 0;
+    mEssenceSource = essence_source;
     mMaxReadLength = 0;
     mTotalReadLength = 0;
     mMaxSampleSize = 0;
@@ -75,16 +76,8 @@ RawEssenceReader::RawEssenceReader(FILE *raw_input)
 
 RawEssenceReader::~RawEssenceReader()
 {
-    if (mRawInput)
-        fclose(mRawInput);
-
+    delete mEssenceSource;
     delete mEssenceParser;
-}
-
-void RawEssenceReader::SetStartOffset(int64_t offset)
-{
-    mStartOffset = offset;
-    Reset();
 }
 
 void RawEssenceReader::SetMaxReadLength(int64_t len)
@@ -147,12 +140,8 @@ uint32_t RawEssenceReader::GetSampleSize() const
 
 void RawEssenceReader::Reset()
 {
-#if defined(_WIN32)
-    if (_fseeki64(mRawInput, mStartOffset, SEEK_SET) != 0)
-#else
-    if (fseeko(mRawInput, mStartOffset, SEEK_SET) != 0)
-#endif
-        throw BMXException("Failed to seek to raw file start offset 0x%"PRIx64": %s", mStartOffset, strerror(errno));
+    if (!mEssenceSource->SeekStart())
+        throw BMXException("Failed to seek to essence start: %s", mEssenceSource->GetStrError().c_str());
 
     mTotalReadLength = 0;
     mSampleBuffer.SetSize(0);
@@ -208,7 +197,7 @@ bool RawEssenceReader::ReadAndParseSample()
         sample_num_read += num_read;
     }
 
-    if (sample_size == 0) {
+    if (sample_size == ESSENCE_PARSER_NULL_FRAME_SIZE) {
         // invalid or null sample data
         mLastSampleRead = true;
         return false;
@@ -238,9 +227,9 @@ uint32_t RawEssenceReader::ReadBytes(uint32_t size)
         return 0;
 
     mSampleBuffer.Grow(actual_size);
-    uint32_t num_read = (uint32_t)fread(mSampleBuffer.GetBytesAvailable(), 1, actual_size, mRawInput);
-    if (num_read < actual_size && ferror(mRawInput))
-        log_error("Failed to read from raw file: %s\n", strerror(errno));
+    uint32_t num_read = mEssenceSource->Read(mSampleBuffer.GetBytesAvailable(), actual_size);
+    if (num_read < actual_size && mEssenceSource->HaveError())
+        log_error("Failed to read from raw essence source: %s\n", mEssenceSource->GetStrError().c_str());
 
     mTotalReadLength += num_read;
     mSampleBuffer.IncrementSize(num_read);

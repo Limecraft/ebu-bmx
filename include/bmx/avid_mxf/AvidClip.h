@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AVID_CLIP_H__
-#define __BMX_AVID_CLIP_H__
+#ifndef BMX_AVID_CLIP_H_
+#define BMX_AVID_CLIP_H_
 
 
 #include <string>
@@ -41,7 +41,12 @@
 
 #include <bmx/avid_mxf/AvidTrack.h>
 #include <bmx/mxf_helper/MXFFileFactory.h>
+#include <bmx/mxf_helper/UniqueIdHelper.h>
 #include <bmx/avid_mxf/AvidTypes.h>
+
+
+#define AVID_DEFAULT_FLAVOUR                0x0000
+#define AVID_GROWING_FILE_FLAVOUR           0x0001
 
 
 
@@ -53,21 +58,24 @@ class AvidClip
 {
 public:
     friend class AvidTrack;
+    friend class AvidAVCITrack;
 
 public:
-    AvidClip(mxfRational frame_rate, MXFFileFactory *file_factory, bool take_factory_ownership,
+    AvidClip(int flavour, mxfRational frame_rate, MXFFileFactory *file_factory, bool take_factory_ownership,
              std::string filename_prefix = "");
     ~AvidClip();
 
     void SetProjectName(std::string name);                              // default ""
     void SetClipName(std::string name);                                 // default ""
     void SetStartTimecode(Timecode start_timecode);                     // default 00:00:00:00, non-drop frame
+    void SetAuxiliaryTimecodes(const std::vector<Timecode> &aux_timecodes);
     void SetProductInfo(std::string company_name, std::string product_name, mxfProductVersion product_version,
                         std::string version, mxfUUID product_uid);
     void SetCreationDate(mxfTimestamp creation_date);                   // default generated ('now')
     void SetGenerationUID(mxfUUID generation_uid);                      // default generated
     void SetMaterialPackageCreationDate(mxfTimestamp creation_date);    // default file creation date
     void SetMaterialPackageUID(mxfUMID package_uid);                    // default generated
+    void SetGrowingDuration(int64_t duration);                          // default -1; requires growing file flavour
 
 public:
     void SetUserComment(std::string name, std::string value);
@@ -77,10 +85,9 @@ public:
     // default source package creation
     mxfpp::SourcePackage* CreateDefaultTapeSource(std::string name, uint32_t num_video_tracks, uint32_t num_audio_tracks);
     mxfpp::SourcePackage* CreateDefaultImportSource(std::string uri, std::string name,
-                                                    uint32_t num_video_tracks, uint32_t num_audio_tracks,
-                                                    bool timecode_track);
-    std::vector<std::pair<mxfUMID, uint32_t> > GetPictureSourceReferences(mxfpp::SourcePackage *source_package);
-    std::vector<std::pair<mxfUMID, uint32_t> > GetSoundSourceReferences(mxfpp::SourcePackage *source_package);
+                                                    uint32_t num_video_tracks, uint32_t num_audio_tracks);
+    std::vector<std::pair<mxfUMID, uint32_t> > GetSourceReferences(mxfpp::SourcePackage *source_package,
+                                                                   MXFDataDefEnum data_def);
 
     // custom source package creation
     mxfpp::DataModel* GetDataModel() const { return mDataModel; }
@@ -100,19 +107,29 @@ public:
     int64_t GetDuration() const;
     mxfRational GetFrameRate() const { return mClipFrameRate; }
 
+    uint32_t GetNumTracks() const { return (uint32_t)mTracks.size(); }
+    AvidTrack* GetTrack(uint32_t track_index) const;
+
+    int64_t GetFilePosition(uint32_t track_index) const;
+
+    mxfUMID GetMaterialPackageUID() const { return mMaterialPackageUID; }
+
+    UniqueIdHelper* GetTrackIdHelper()  { return &mTrackIdHelper; }
+    UniqueIdHelper* GetStreamIdHelper() { return &mStreamIdHelper; }
+
 private:
     void CreateMinimalHeaderMetadata();
     void CreateMaterialPackage();
     void SetPhysicalSourceStartTimecode();
 
     void UpdateHeaderMetadata();
-    void UpdateTrackDurations(AvidTrack *avid_track, mxfpp::Track *track, mxfRational edit_rate, int64_t duration);
-    void UpdateTimecodeTrackDuration(AvidTrack *avid_track, mxfpp::GenericPackage *package, mxfRational package_edit_rate);
-    bool GetStartTimecode(mxfpp::GenericPackage *package, Timecode *timecode);
-
-    std::vector<std::pair<mxfUMID, uint32_t> > GetSourceReferences(mxfpp::SourcePackage *source_package, bool is_picture);
+    void UpdateTrackDurations(AvidTrack *avid_track, bool is_file_source, mxfpp::Track *track, mxfRational edit_rate,
+                              int64_t duration);
+    void UpdateTimecodeTrackDuration(AvidTrack *avid_track, bool is_file_source, mxfpp::GenericPackage *package,
+                                     mxfRational package_edit_rate);
 
 private:
+    int mFlavour;
     MXFFileFactory *mFileFactory;
     bool mOwnFileFactory;
 
@@ -122,6 +139,7 @@ private:
     std::string mFilenamePrefix;
     Timecode mStartTimecode;
     bool mStartTimecodeSet;
+    std::vector<Timecode> mAuxTimecodes;
     std::string mCompanyName;
     std::string mProductName;
     mxfProductVersion mProductVersion;
@@ -130,6 +148,7 @@ private:
     std::map<std::string, std::string> mUserComments;
     std::vector<AvidLocator> mLocators;
     bool mMaxLocatorsExceeded;
+    int64_t mGrowingDuration;
 
     mxfTimestamp mCreationDate;
     mxfUUID mGenerationUID;
@@ -148,6 +167,9 @@ private:
     uint32_t mLocatorDescribedTrackId;
 
     std::vector<AvidTrack*> mTracks;
+
+    UniqueIdHelper mTrackIdHelper;
+    UniqueIdHelper mStreamIdHelper;
 };
 
 

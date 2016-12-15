@@ -94,6 +94,8 @@ static const SupportedEssence SUPPORTED_ESSENCE[] =
     {MXF_CMDEF_L(DVBased_100_720_60_P),     MXF_EC_L(DVBased_100_720_60_P_ClipWrapped),    DV100_720P,       {60000, 1001},   false,   0x00,  240000,  2,  1,  1280,   720,    960,    {26, 0},    MXF_COLOR_SITING_REC601,        MXF_FULL_FRAME,        MXF_SIGNAL_STANDARD_SMPTE296M,   ITUR_BT709_CODING_EQ},
     {MXF_CMDEF_L(DVBased_100_720_60_P),     MXF_EC_L(DVBased_100_720_60_P_FrameWrapped),   DV100_720P,       {30000, 1001},   true,    0x00,  240000,  2,  1,  1280,   720,    960,    {26, 0},    MXF_COLOR_SITING_REC601,        MXF_FULL_FRAME,        MXF_SIGNAL_STANDARD_SMPTE296M,   ITUR_BT709_CODING_EQ},
     {MXF_CMDEF_L(DVBased_100_720_60_P),     MXF_EC_L(DVBased_100_720_60_P_ClipWrapped),    DV100_720P,       {30000, 1001},   false,   0x00,  240000,  2,  1,  1280,   720,    960,    {26, 0},    MXF_COLOR_SITING_REC601,        MXF_FULL_FRAME,        MXF_SIGNAL_STANDARD_SMPTE296M,   ITUR_BT709_CODING_EQ},
+    {MXF_CMDEF_L(DVBased_100_720_60_P),     MXF_EC_L(DVBased_100_720_60_P_FrameWrapped),   DV100_720P,       {24000, 1001},   true,    0x00,  240000,  2,  1,  1280,   720,    960,    {26, 0},    MXF_COLOR_SITING_REC601,        MXF_FULL_FRAME,        MXF_SIGNAL_STANDARD_SMPTE296M,   ITUR_BT709_CODING_EQ},
+    {MXF_CMDEF_L(DVBased_100_720_60_P),     MXF_EC_L(DVBased_100_720_60_P_ClipWrapped),    DV100_720P,       {24000, 1001},   false,   0x00,  240000,  2,  1,  1280,   720,    960,    {26, 0},    MXF_COLOR_SITING_REC601,        MXF_FULL_FRAME,        MXF_SIGNAL_STANDARD_SMPTE296M,   ITUR_BT709_CODING_EQ},
 };
 
 
@@ -102,7 +104,7 @@ EssenceType DVMXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor, 
 {
     (void)alternative_ec_label;
 
-    mxfRational sample_rate = file_descriptor->getSampleRate();
+    mxfRational sample_rate = normalize_rate(file_descriptor->getSampleRate());
 
     GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
     if (!pic_descriptor || !pic_descriptor->havePictureEssenceCoding())
@@ -111,7 +113,7 @@ EssenceType DVMXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor, 
     mxfUL pc_label = pic_descriptor->getPictureEssenceCoding();
     mxfUL ec_label = file_descriptor->getEssenceContainer();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (mxf_equals_ul_mod_regver(&ec_label, &MXF_EC_L(AvidAAFKLVEssenceContainer)))
         {
             // legacy Avid files use the wrong essence container label
@@ -139,7 +141,7 @@ EssenceType DVMXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor, 
 bool DVMXFDescriptorHelper::IsSupported(EssenceType essence_type)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (essence_type == SUPPORTED_ESSENCE[i].essence_type)
             return true;
     }
@@ -166,14 +168,14 @@ void DVMXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uint16_t
 
     PictureMXFDescriptorHelper::Initialize(file_descriptor, mxf_version, alternative_ec_label);
 
-    mxfRational sample_rate = file_descriptor->getSampleRate();
+    mxfRational sample_rate = normalize_rate(file_descriptor->getSampleRate());
 
     GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
 
     mxfUL pc_label = pic_descriptor->getPictureEssenceCoding();
     mxfUL ec_label = file_descriptor->getEssenceContainer();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (mxf_equals_ul_mod_regver(&ec_label, &MXF_EC_L(AvidAAFKLVEssenceContainer)))
         {
             // legacy Avid files use the wrong essence container label
@@ -194,7 +196,7 @@ void DVMXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uint16_t
             break;
         }
     }
-    if (i < ARRAY_SIZE(SUPPORTED_ESSENCE)) {
+    if (i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE)) {
         mEssenceIndex = i;
         mEssenceType = SUPPORTED_ESSENCE[i].essence_type;
         mFrameWrapped = SUPPORTED_ESSENCE[i].frame_wrapped;
@@ -254,7 +256,7 @@ void DVMXFDescriptorHelper::UpdateFileDescriptor()
     CDCIEssenceDescriptor *cdci_descriptor = dynamic_cast<CDCIEssenceDescriptor*>(mFileDescriptor);
     BMX_ASSERT(cdci_descriptor);
 
-    SetColorSiting(SUPPORTED_ESSENCE[mEssenceIndex].color_siting);
+    SetColorSitingMod(SUPPORTED_ESSENCE[mEssenceIndex].color_siting);
     cdci_descriptor->setFrameLayout(SUPPORTED_ESSENCE[mEssenceIndex].frame_layout);
     cdci_descriptor->setImageAlignmentOffset(1);
     cdci_descriptor->setComponentDepth(mComponentDepth);
@@ -262,10 +264,10 @@ void DVMXFDescriptorHelper::UpdateFileDescriptor()
     cdci_descriptor->setWhiteReflevel(235);
     cdci_descriptor->setColorRange(225);
     cdci_descriptor->setSignalStandard(SUPPORTED_ESSENCE[mEssenceIndex].signal_standard);
-    SetCodingEquations(SUPPORTED_ESSENCE[mEssenceIndex].coding_eq);
+    SetCodingEquationsMod(SUPPORTED_ESSENCE[mEssenceIndex].coding_eq);
     cdci_descriptor->appendVideoLineMap(SUPPORTED_ESSENCE[mEssenceIndex].video_line_map[0]);
     cdci_descriptor->appendVideoLineMap(SUPPORTED_ESSENCE[mEssenceIndex].video_line_map[1]);
-    if (mFlavour == AVID_FLAVOUR)
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR))
         cdci_descriptor->setStoredWidth(SUPPORTED_ESSENCE[mEssenceIndex].avid_stored_width);
     else
         cdci_descriptor->setStoredWidth(SUPPORTED_ESSENCE[mEssenceIndex].stored_width);
@@ -274,6 +276,12 @@ void DVMXFDescriptorHelper::UpdateFileDescriptor()
     cdci_descriptor->setDisplayHeight(cdci_descriptor->getStoredHeight());
     cdci_descriptor->setSampledWidth(cdci_descriptor->getStoredWidth());
     cdci_descriptor->setSampledHeight(cdci_descriptor->getStoredHeight());
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR)) {
+        cdci_descriptor->setSampledXOffset(0);
+        cdci_descriptor->setSampledYOffset(0);
+        cdci_descriptor->setDisplayXOffset(0);
+        cdci_descriptor->setDisplayYOffset(0);
+    }
     cdci_descriptor->setPictureEssenceCoding(SUPPORTED_ESSENCE[mEssenceIndex].pc_label);
     cdci_descriptor->setHorizontalSubsampling(SUPPORTED_ESSENCE[mEssenceIndex].horiz_subs);
     cdci_descriptor->setVerticalSubsampling(SUPPORTED_ESSENCE[mEssenceIndex].vert_subs);
@@ -292,7 +300,7 @@ mxfUL DVMXFDescriptorHelper::ChooseEssenceContainerUL() const
 void DVMXFDescriptorHelper::UpdateEssenceIndex()
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (SUPPORTED_ESSENCE[i].essence_type == mEssenceType &&
             SUPPORTED_ESSENCE[i].sample_rate == mSampleRate &&
             SUPPORTED_ESSENCE[i].frame_wrapped == mFrameWrapped)
@@ -302,6 +310,6 @@ void DVMXFDescriptorHelper::UpdateEssenceIndex()
             break;
         }
     }
-    BMX_CHECK(i < ARRAY_SIZE(SUPPORTED_ESSENCE));
+    BMX_CHECK(i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE));
 }
 

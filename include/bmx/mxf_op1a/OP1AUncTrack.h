@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_OP1A_UNC_TRACK_H__
-#define __BMX_OP1A_UNC_TRACK_H__
+#ifndef BMX_OP1A_UNC_TRACK_H_
+#define BMX_OP1A_UNC_TRACK_H_
 
 #include <bmx/mxf_op1a/OP1APictureTrack.h>
 #include <bmx/mxf_helper/UncCDCIMXFDescriptorHelper.h>
@@ -49,9 +49,17 @@ public:
     virtual ~OP1AUncTrack();
 
     void SetComponentDepth(uint32_t depth);             // default 8; alternative is 10
+    void SetInputHeight(uint32_t height);               // default stored height
+
+protected:
+    virtual void PrepareWrite(uint8_t track_count);
+    virtual void WriteSamplesInt(const unsigned char *data, uint32_t size, uint32_t num_samples);
 
 private:
     UncCDCIMXFDescriptorHelper *mUncDescriptorHelper;
+    uint32_t mInputHeight;
+    uint32_t mInputSampleSize;
+    uint32_t mSkipSize;
 };
 
 

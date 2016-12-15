@@ -36,6 +36,7 @@
 #include <bmx/mxf_helper/MXFDescriptorHelper.h>
 #include <bmx/mxf_helper/PictureMXFDescriptorHelper.h>
 #include <bmx/mxf_helper/SoundMXFDescriptorHelper.h>
+#include <bmx/mxf_helper/DataMXFDescriptorHelper.h>
 #include <bmx/Utils.h>
 #include <bmx/BMXTypes.h>
 #include <bmx/BMXException.h>
@@ -54,8 +55,11 @@ EssenceType MXFDescriptorHelper::IsSupported(mxfpp::FileDescriptor *file_descrip
     EssenceType essence_type = PictureMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
     if (essence_type)
         return essence_type;
-    else
-        return SoundMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
+    essence_type = SoundMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
+    if (essence_type)
+        return essence_type;
+    essence_type = DataMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
+    return essence_type;
 }
 
 MXFDescriptorHelper* MXFDescriptorHelper::Create(mxfpp::FileDescriptor *file_descriptor, uint16_t mxf_version,
@@ -65,6 +69,8 @@ MXFDescriptorHelper* MXFDescriptorHelper::Create(mxfpp::FileDescriptor *file_des
         return PictureMXFDescriptorHelper::Create(file_descriptor, mxf_version, alternative_ec_label);
     else if (SoundMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
         return SoundMXFDescriptorHelper::Create(file_descriptor, mxf_version, alternative_ec_label);
+    else if (DataMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
+        return DataMXFDescriptorHelper::Create(file_descriptor, mxf_version, alternative_ec_label);
 
     BMX_ASSERT(false);
     return 0;
@@ -76,6 +82,8 @@ MXFDescriptorHelper* MXFDescriptorHelper::Create(EssenceType essence_type)
         return PictureMXFDescriptorHelper::Create(essence_type);
     else if (SoundMXFDescriptorHelper::IsSupported(essence_type))
         return SoundMXFDescriptorHelper::Create(essence_type);
+    else if (DataMXFDescriptorHelper::IsSupported(essence_type))
+        return DataMXFDescriptorHelper::Create(essence_type);
 
     BMX_ASSERT(false);
     return 0;
@@ -89,7 +97,7 @@ bool MXFDescriptorHelper::CompareECULs(mxfUL ec_label_a, mxfUL alternative_ec_la
 
 bool MXFDescriptorHelper::IsNullAvidECUL(mxfUL ec_label, mxfUL alternative_ec_label)
 {
-    return mxf_equals_ul(&ec_label, &MXF_EC_L(AvidAAFKLVEssenceContainer)) &&
+    return mxf_equals_ul_mod_regver(&ec_label, &MXF_EC_L(AvidAAFKLVEssenceContainer)) &&
            mxf_equals_ul(&alternative_ec_label, &g_Null_UL);
 }
 
@@ -98,7 +106,7 @@ MXFDescriptorHelper::MXFDescriptorHelper()
     mSampleRate = FRAME_RATE_25;
     mFrameWrapped = true;
     mFileDescriptor = 0;
-    mFlavour = SMPTE_377_2004_FLAVOUR;
+    mFlavour = MXFDESC_SMPTE_377_2004_FLAVOUR;
 
     // mEssenceType is set by subclass
 }
@@ -112,7 +120,7 @@ void MXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uint16_t m
     (void)mxf_version;
     (void)alternative_ec_label;
 
-    mSampleRate = file_descriptor->getSampleRate();
+    mSampleRate = normalize_rate(file_descriptor->getSampleRate());
     // mEssenceType and mFrameWrapped are set by subclass
 
     mFileDescriptor = file_descriptor;
@@ -132,8 +140,10 @@ void MXFDescriptorHelper::SetSampleRate(mxfRational sample_rate)
               sample_rate == FRAME_RATE_24 ||
               sample_rate == FRAME_RATE_25 ||
               sample_rate == FRAME_RATE_2997 ||
+              sample_rate == FRAME_RATE_30 ||
               sample_rate == FRAME_RATE_50 ||
               sample_rate == FRAME_RATE_5994 ||
+              sample_rate == FRAME_RATE_60 ||
               (IsSound() && sample_rate == SAMPLING_RATE_48K));
 
     mSampleRate = sample_rate;
@@ -146,12 +156,12 @@ void MXFDescriptorHelper::SetFrameWrapped(bool frame_wrapped)
     mFrameWrapped = frame_wrapped;
 }
 
-void MXFDescriptorHelper::SetFlavour(DescriptorFlavour flavour)
+void MXFDescriptorHelper::SetFlavour(int flavour)
 {
     BMX_ASSERT(!mFileDescriptor);
 
     mFlavour = flavour;
-    if (flavour == AVID_FLAVOUR)
+    if ((flavour & MXFDESC_AVID_FLAVOUR))
         mFrameWrapped = false;
 }
 

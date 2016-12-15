@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AVCI_MXF_DESCRIPTOR_HELPER_H__
-#define __BMX_AVCI_MXF_DESCRIPTOR_HELPER_H__
+#ifndef BMX_AVCI_MXF_DESCRIPTOR_HELPER_H_
+#define BMX_AVCI_MXF_DESCRIPTOR_HELPER_H_
 
 
 #include <bmx/mxf_helper/PictureMXFDescriptorHelper.h>
@@ -47,6 +47,8 @@ public:
     static EssenceType IsSupported(mxfpp::FileDescriptor *file_descriptor, mxfUL alternative_ec_label);
     static bool IsSupported(EssenceType essence_type);
 
+    static uint32_t GetSampleSize(EssenceType essence_type, mxfRational sample_rate);
+
 public:
     AVCIMXFDescriptorHelper();
     virtual ~AVCIMXFDescriptorHelper();
@@ -59,9 +61,13 @@ public:
     // configure and create new descriptor
     virtual void SetEssenceType(EssenceType essence_type);
     virtual void SetSampleRate(mxfRational sample_rate);
+    void SetIncludeHeader(bool include_header);
+    void SetUseAVCSubDescriptor(bool enable);
 
     virtual mxfpp::FileDescriptor* CreateFileDescriptor(mxfpp::HeaderMetadata *header_metadata);
     virtual void UpdateFileDescriptor();
+
+    mxfpp::AVCSubDescriptor* GetAVCSubDescriptor() const { return mAVCSubDescriptor; }
 
 public:
     virtual uint32_t GetSampleSize();
@@ -75,6 +81,10 @@ private:
 
 private:
     size_t mEssenceIndex;
+    bool mIncludeHeader;
+    bool mIncludeHeaderSet;
+    bool mUseAVCSubDescriptor;
+    mxfpp::AVCSubDescriptor *mAVCSubDescriptor;
 };
 
 

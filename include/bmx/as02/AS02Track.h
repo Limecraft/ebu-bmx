@@ -29,13 +29,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AS02_TRACK_H__
-#define __BMX_AS02_TRACK_H__
+#ifndef BMX_AS02_TRACK_H_
+#define BMX_AS02_TRACK_H_
 
 
 #include <bmx/as02/AS02Bundle.h>
 #include <bmx/mxf_helper/MXFDescriptorHelper.h>
-#include <bmx/MD5.h>
+#include <bmx/Checksum.h>
 
 
 
@@ -66,6 +66,8 @@ public:
 
     void SetOutputStartOffset(int64_t offset);
     void SetOutputEndOffset(int64_t offset);
+
+    MXFDescriptorHelper* GetMXFDescriptorHelper() { return mDescriptorHelper; }
 
 public:
     virtual void PrepareWrite();
@@ -119,6 +121,7 @@ protected:
     uint32_t mIndexSID;
     uint32_t mBodySID;
     uint8_t mLLen;
+    uint8_t mEssenceElementLLen;
     uint32_t mKAGSize;
     mxfKey mEssenceElementKey;
 
@@ -154,7 +157,6 @@ private:
     int64_t mHeaderMetadataStartPos;
     int64_t mHeaderMetadataEndPos;
     mxfpp::IndexTableSegment *mCBEIndexSegment;
-    int64_t mIndexTableStartPos;
 
     mxfpp::MaterialPackage* mMaterialPackage;
     mxfpp::SourcePackage* mFileSourcePackage;
@@ -165,7 +167,7 @@ private:
     uint32_t mLowerLevelTrackId;
     std::string mLowerLevelURI;
 
-    MD5Context mEssenceOnlyMD5Context;
+    Checksum mEssenceOnlyChecksum;
 };
 
 

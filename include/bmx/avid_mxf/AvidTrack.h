@@ -29,12 +29,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AVID_TRACK_H__
-#define __BMX_AVID_TRACK_H__
+#ifndef BMX_AVID_TRACK_H_
+#define BMX_AVID_TRACK_H_
 
 #include <string>
 
 #include <libMXF++/MXF.h>
+#include <libMXF++/extensions/TaggedValue.h>
 
 #include <bmx/mxf_helper/MXFDescriptorHelper.h>
 
@@ -61,6 +62,11 @@ public:
     void SetFileSourcePackageUID(mxfUMID package_uid);
     void SetSourceRef(mxfUMID ref_package_uid, uint32_t ref_track_id);
 
+    virtual bool SupportOutputStartOffset() { return false; }
+    void SetOutputStartOffset(int64_t offset);
+
+    MXFDescriptorHelper* GetMXFDescriptorHelper() { return mDescriptorHelper; }
+
 public:
     virtual void PrepareWrite();
     virtual void WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples);
@@ -74,8 +80,12 @@ public:
     int64_t GetDuration() const;
     int64_t GetContainerDuration() const;
 
+    int64_t GetFilePosition() const;
+
 public:
     virtual bool IsPicture() const = 0;
+
+    mxfUMID GetFileSourcePackageUID() const { return mFileSourcePackageUID; }
 
     void SetMaterialTrackId(uint32_t track_id);
     uint32_t GetMaterialTrackId() const { return mMaterialTrackId; }
@@ -87,11 +97,15 @@ public:
     bool IsOutputTrackNumberSet() const   { return mOutputTrackNumberSet; }
     uint32_t GetOutputTrackNumber() const { return mOutputTrackNumber; }
 
+    int64_t GetOutputStartOffset() const { return mOutputStartOffset; }
+
     mxfpp::MaterialPackage* GetMaterialPackage() const { return mMaterialPackage; }
     mxfpp::SourcePackage* GetFileSourcePackage() const { return mFileSourcePackage; }
     mxfpp::SourcePackage* GetRefSourcePackage() const { return mRefSourcePackage; }
     mxfpp::AvidHeaderMetadata* GetHeaderMetadata() const { return mHeaderMetadata; }
     mxfpp::DataModel* GetDataModel() const { return mDataModel; }
+
+    void SetPhysicalSourceStartTimecode();
 
 protected:
     AvidTrack(AvidClip *clip, uint32_t track_index, EssenceType essence_type, mxfpp::File *mxf_file);
@@ -131,7 +145,6 @@ protected:
 
     mxfpp::DataModel *mDataModel;
     mxfpp::AvidHeaderMetadata *mHeaderMetadata;
-    int64_t mHeaderMetadataStartPos;
     int64_t mEssenceDataStartPos;
     mxfpp::IndexTableSegment *mCBEIndexSegment;
 
@@ -139,12 +152,18 @@ protected:
     mxfpp::SourcePackage* mFileSourcePackage;
     mxfpp::SourcePackage* mRefSourcePackage;
 
+    mxfpp::TaggedValue *mOMMMobCompleteTaggedValue;
+    mxfpp::TaggedValue *mEWCFileMobTaggedValue;
+
     int64_t mContainerDuration;
     int64_t mContainerSize;
+    int64_t mOutputStartOffset;
 
 private:
     void CreateHeaderMetadata();
     void CreateFile();
+
+    mxfpp::TimecodeComponent* GetTimecodeComponent(mxfpp::GenericPackage *package);
 };
 
 

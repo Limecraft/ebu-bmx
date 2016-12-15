@@ -40,8 +40,11 @@
 #include <algorithm>
 
 #include <bmx/mxf_op1a/OP1AFile.h>
+#include <bmx/mxf_op1a/OP1APCMTrack.h>
 #include <bmx/mxf_helper/MXFDescriptorHelper.h>
-#include <bmx/MD5.h>
+#include <bmx/mxf_helper/MXFMCALabelHelper.h>
+#include <bmx/MXFUtils.h>
+#include <bmx/Utils.h>
 #include <bmx/Version.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
@@ -50,42 +53,29 @@ using namespace std;
 using namespace bmx;
 using namespace mxfpp;
 
-
-
-static const uint32_t TIMECODE_TRACK_ID         = 901;
-static const uint32_t FIRST_PICTURE_TRACK_ID    = 1001;
-static const uint32_t FIRST_SOUND_TRACK_ID      = 2001;
+// some large number that is not expected to be exceeded and avoids memory allocation exceptions
+// maximum buffer requirement is expected to be the coding delay / maximum temporal offset
+#define MAX_BUFFERED_CONTENT_PACKAGES   200
 
 static const char TIMECODE_TRACK_NAME[]         = "TC1";
-
-static const uint32_t INDEX_SID                 = 1;
-static const uint32_t BODY_SID                  = 2;
-
 static const uint8_t MIN_LLEN                   = 4;
-
 static const uint32_t MEMORY_WRITE_CHUNK_SIZE   = 8192;
 
 
 
 static bool compare_track(OP1ATrack *left, OP1ATrack *right)
 {
-    return left->IsPicture() && !right->IsPicture();
+    return left->GetDataDef() < right->GetDataDef();
 }
 
 
 
 OP1AFile::OP1AFile(int flavour, mxfpp::File *mxf_file, mxfRational frame_rate)
 {
-    BMX_CHECK(frame_rate == FRAME_RATE_23976 ||
-              frame_rate == FRAME_RATE_24 ||
-              frame_rate == FRAME_RATE_25 ||
-              frame_rate == FRAME_RATE_2997 ||
-              frame_rate == FRAME_RATE_50 ||
-              frame_rate == FRAME_RATE_5994);
-
     mFlavour = flavour;
     mMXFFile = mxf_file;
     mFrameRate = frame_rate;
+    mEditRate = frame_rate;
     mStartTimecode = Timecode(frame_rate, false);
     mCompanyName = get_bmx_company_name();
     mProductName = get_bmx_library_name();
@@ -98,32 +88,54 @@ OP1AFile::OP1AFile(int flavour, mxfpp::File *mxf_file, mxfRational frame_rate)
     mxf_generate_uuid(&mGenerationUID);
     mxf_generate_umid(&mMaterialPackageUID);
     mxf_generate_umid(&mFileSourcePackageUID);
+    mFrameWrapped = true;
     mOutputStartOffset = 0;
     mOutputEndOffset = 0;
-    mPictureTrackCount = 0;
-    mSoundTrackCount = 0;
+    mHaveANCTrack = false;
+    mHaveVBITrack = false;
     mDataModel = 0;
     mHeaderMetadata = 0;
-    mHeaderMetadataStartPos = 0;
+    mHavePreparedHeaderMetadata = false;
     mHeaderMetadataEndPos = 0;
-    mCBEIndexTableStartPos = 0;
     mMaterialPackage = 0;
     mFileSourcePackage = 0;
     mFirstWrite = true;
+    mWaitForIndexComplete = false;
     mPartitionInterval = 0;
     mPartitionFrameCount = 0;
     mKAGSize = ((flavour & OP1A_512_KAG_FLAVOUR) ? 512 : 1);
     mEssencePartitionKAGSize = mKAGSize;
     mSupportCompleteSinglePass = false;
     mFooterPartitionOffset = 0;
-    mMXFMD5WrapperFile = 0;
+    mMXFChecksumFile = 0;
+    mCBEIndexPartitionIndex = 0;
 
-    mIndexTable = new OP1AIndexTable(INDEX_SID, BODY_SID, frame_rate);
-    mCPManager = new OP1AContentPackageManager(mEssencePartitionKAGSize, MIN_LLEN);
+    mTrackIdHelper.SetId("TimecodeTrack", 901);
+    mTrackIdHelper.SetStartId(MXF_PICTURE_DDEF, 1001);
+    mTrackIdHelper.SetStartId(MXF_SOUND_DDEF,   2001);
+    mTrackIdHelper.SetStartId(MXF_DATA_DDEF,    3001);
+    mTrackIdHelper.SetStartId(XML_TRACK_TYPE,   9001);
+
+    mStreamIdHelper.SetId("IndexStream", 1);
+    mStreamIdHelper.SetId("BodyStream",  2);
+    mStreamIdHelper.SetStartId(GENERIC_STREAM_TYPE, 10);
+
+    mDataModel = new DataModel();
+    mHeaderMetadata = new HeaderMetadata(mDataModel);
+
+    mIndexTable = new OP1AIndexTable(mStreamIdHelper.GetId("IndexStream"), mStreamIdHelper.GetId("BodyStream"), frame_rate,
+                                     (flavour & OP1A_ARD_ZDF_HDF_PROFILE_FLAVOUR));
+    mCPManager = new OP1AContentPackageManager(mMXFFile, mIndexTable, frame_rate, mEssencePartitionKAGSize, MIN_LLEN);
 
     if (flavour & OP1A_SINGLE_PASS_MD5_WRITE_FLAVOUR) {
-        mMXFMD5WrapperFile = md5_wrap_mxf_file(mMXFFile->getCFile());
-        mMXFFile->swapCFile(md5_wrap_get_file(mMXFMD5WrapperFile));
+        mMXFChecksumFile = mxf_checksum_file_open(mMXFFile->getCFile(), MD5_CHECKSUM);
+        mMXFFile->swapCFile(mxf_checksum_file_get_file(mMXFChecksumFile));
+    }
+
+    if ((flavour & OP1A_ARD_ZDF_HDF_PROFILE_FLAVOUR)) {
+        mFlavour |= OP1A_BODY_PARTITIONS_FLAVOUR;
+        ReserveHeaderMetadataSpace(2 * 1024 * 1024 + 8192);
+        SetAddSystemItem(true);
     }
 
     // use fill key with correct version number
@@ -135,6 +147,8 @@ OP1AFile::~OP1AFile()
     size_t i;
     for (i = 0; i < mTracks.size(); i++)
         delete mTracks[i];
+    for (i = 0; i < mXMLTracks.size(); i++)
+        delete mXMLTracks[i];
 
     delete mMXFFile;
     delete mDataModel;
@@ -151,6 +165,11 @@ void OP1AFile::SetClipName(string name)
 void OP1AFile::SetStartTimecode(Timecode start_timecode)
 {
     mStartTimecode = start_timecode;
+}
+
+void OP1AFile::SetHaveInputUserTimecode(bool enable)
+{
+    mCPManager->SetHaveInputUserTimecode(enable);
 }
 
 void OP1AFile::SetProductInfo(string company_name, string product_name, mxfProductVersion product_version,
@@ -200,6 +219,21 @@ void OP1AFile::SetPartitionInterval(int64_t frame_count)
     mPartitionInterval = frame_count;
 }
 
+void OP1AFile::SetClipWrapped(bool enable)
+{
+    BMX_CHECK(mTracks.empty());
+    mFrameWrapped = !enable;
+    mCPManager->SetClipWrapped(enable);
+}
+
+void OP1AFile::SetAddSystemItem(bool enable)
+{
+    if (enable) {
+        mCPManager->RegisterSystemItem();
+        mIndexTable->RegisterSystemItem();
+    }
+}
+
 void OP1AFile::SetOutputStartOffset(int64_t offset)
 {
     BMX_CHECK(offset >= 0);
@@ -216,52 +250,75 @@ void OP1AFile::SetOutputEndOffset(int64_t offset)
 
 OP1ATrack* OP1AFile::CreateTrack(EssenceType essence_type)
 {
-    uint32_t track_id;
-    uint8_t track_type_number;
-    if ((essence_type == WAVE_PCM)) {
-        track_id = FIRST_SOUND_TRACK_ID + mSoundTrackCount;
-        track_type_number = mSoundTrackCount;
-        mSoundTrackCount++;
-    } else {
-        track_id = FIRST_PICTURE_TRACK_ID + mPictureTrackCount;
-        track_type_number = mPictureTrackCount;
-        mPictureTrackCount++;
+    if (essence_type == ANC_DATA) {
+        if (mHaveANCTrack)
+            BMX_EXCEPTION(("Only a single ST 436 ANC track is allowed"));
+        mHaveANCTrack = true;
+    }
+    if (essence_type == VBI_DATA) {
+        if (mHaveVBITrack)
+            BMX_EXCEPTION(("Only a single ST 436 VBI track is allowed"));
+        mHaveVBITrack = true;
     }
 
-    mTracks.push_back(OP1ATrack::Create(this, (uint32_t)mTracks.size(), track_id, track_type_number, mFrameRate,
+    MXFDataDefEnum data_def = convert_essence_type_to_data_def(essence_type);
+    uint32_t track_id = mTrackIdHelper.GetNextId(data_def);
+    uint8_t track_type_number = mTrackCounts[data_def];
+    mTrackCounts[data_def]++;
+
+    BMX_CHECK_M(mFrameWrapped || (mTracks.empty() && data_def == MXF_SOUND_DDEF && mTrackCounts[data_def] == 1),
+                ("OP-1A clip wrapping only supported for a single sound track"));
+
+    mTracks.push_back(OP1ATrack::Create(this, (uint32_t)mTracks.size(), track_id, track_type_number, mEditRate,
                                         essence_type));
     mTrackMap[mTracks.back()->GetTrackIndex()] = mTracks.back();
+
+    if (!mFrameWrapped) {
+        mEditRate = mTracks.back()->GetEditRate();
+        mIndexTable->SetEditRate(mEditRate);
+    }
 
     return mTracks.back();
 }
 
+OP1AXMLTrack* OP1AFile::CreateXMLTrack()
+{
+    uint32_t track_id    = mTrackIdHelper.GetNextId(XML_TRACK_TYPE);
+    uint32_t track_index = (uint32_t)mTracks.size();
+    uint32_t stream_id   = mStreamIdHelper.GetNextId(GENERIC_STREAM_TYPE);
+
+    mXMLTracks.push_back(new OP1AXMLTrack(this, track_index, track_id, stream_id));
+    return mXMLTracks.back();
+}
+
 void OP1AFile::PrepareHeaderMetadata()
 {
-    if (mHeaderMetadata)
+    if (mHavePreparedHeaderMetadata)
         return;
 
     BMX_CHECK(!mTracks.empty());
 
-    // sort tracks, picture followed by sound
+    // sort tracks, picture - sound - data
     stable_sort(mTracks.begin(), mTracks.end(), compare_track);
 
-    uint32_t last_picture_track_number = 0;
-    uint32_t last_sound_track_number = 0;
+    map<MXFDataDefEnum, uint32_t> last_track_number;
     size_t i;
     for (i = 0; i < mTracks.size(); i++) {
-        if (mTracks[i]->IsPicture()) {
-            if (!mTracks[i]->IsOutputTrackNumberSet())
-                mTracks[i]->SetOutputTrackNumber(last_picture_track_number + 1);
-            last_picture_track_number = mTracks[i]->GetOutputTrackNumber();
-        } else {
-            if (!mTracks[i]->IsOutputTrackNumberSet())
-                mTracks[i]->SetOutputTrackNumber(last_sound_track_number + 1);
-            last_sound_track_number = mTracks[i]->GetOutputTrackNumber();
-        }
+        if (!mTracks[i]->IsOutputTrackNumberSet())
+            mTracks[i]->SetOutputTrackNumber(last_track_number[mTracks[i]->GetDataDef()] + 1);
+        last_track_number[mTracks[i]->GetDataDef()] = mTracks[i]->GetOutputTrackNumber();
+    }
+
+    if ((mFlavour & OP1A_ARD_ZDF_HDF_PROFILE_FLAVOUR)) {
+        if (mIndexTable->IsCBE())
+            mIndexTable->SetExtensions(MXF_OPT_BOOL_TRUE, MXF_OPT_BOOL_TRUE, MXF_OPT_BOOL_TRUE);
+        else
+            mIndexTable->SetExtensions(MXF_OPT_BOOL_FALSE, MXF_OPT_BOOL_FALSE, MXF_OPT_BOOL_FALSE);
     }
 
     for (i = 0; i < mTracks.size(); i++)
-        mTracks[i]->PrepareWrite(mPictureTrackCount, mSoundTrackCount);
+        mTracks[i]->PrepareWrite(mTrackCounts[mTracks[i]->GetDataDef()]);
+    mCPManager->SetStartTimecode(mStartTimecode);
     mCPManager->PrepareWrite();
     mIndexTable->PrepareWrite();
 
@@ -275,22 +332,38 @@ void OP1AFile::PrepareHeaderMetadata()
             mSupportCompleteSinglePass = true;
             mIndexTable->SetInputDuration(mInputDuration);
         } else {
-            log_warn("Closing and completing the header partition in a single pass write is not supported\n");
-            mInputDuration = -1;
+            if (!mIndexTable->IsCBE()) {
+                log_warn("Closing and completing the header partition in a single pass write is not supported "
+                         "because essence edit unit size is variable\n");
+            }
+            if (mPartitionInterval != 0) {
+                log_warn("Closing and completing the header partition in a single pass write is not supported "
+                         "because partition interval is non-zero\n");
+            }
+            mSupportCompleteSinglePass = false;
         }
     }
 
     CreateHeaderMetadata();
+
+    mHavePreparedHeaderMetadata = true;
 }
 
 void OP1AFile::PrepareWrite()
 {
     mReserveMinBytes += 256; // account for extra bytes when updating header metadata
 
-    if (!mHeaderMetadata)
+    if (!mHavePreparedHeaderMetadata)
         PrepareHeaderMetadata();
 
     CreateFile();
+}
+
+void OP1AFile::WriteUserTimecode(Timecode user_timecode)
+{
+    mCPManager->WriteUserTimecode(user_timecode);
+
+    WriteContentPackages(false);
 }
 
 void OP1AFile::WriteSamples(uint32_t track_index, const unsigned char *data, uint32_t size, uint32_t num_samples)
@@ -309,6 +382,20 @@ void OP1AFile::CompleteWrite()
     BMX_ASSERT(mMXFFile);
 
 
+    // complete metadata for tracks
+
+    size_t i;
+    for (i = 0; i < mTracks.size(); i++)
+        mTracks[i]->CompleteWrite();
+
+
+    // warn if the index table requires updates (e.g. temporal offsets)
+
+    if (mIndexTable->RequireUpdatesAtEnd(mOutputEndOffset))
+        log_warn("Ignoring incomplete index table information\n");
+    mIndexTable->IgnoreRequiredUpdates();
+
+
     // write any remaining content packages (e.g. first AVCI cp if duration equals 1)
 
     WriteContentPackages(true);
@@ -317,22 +404,15 @@ void OP1AFile::CompleteWrite()
     // check that the duration is valid
 
     BMX_CHECK_M(mIndexTable->GetDuration() - mOutputStartOffset + mOutputEndOffset >= 0,
-               ("Invalid output start %"PRId64" / end %"PRId64" offsets. Output duration %"PRId64" is negative",
+               ("Invalid output start %" PRId64 " / end %" PRId64 " offsets. Output duration %" PRId64 " is negative",
                 mOutputStartOffset, mOutputEndOffset, mIndexTable->GetDuration() - mOutputStartOffset + mOutputEndOffset));
 
     if (mSupportCompleteSinglePass) {
         BMX_CHECK_M(mIndexTable->GetDuration() == mInputDuration,
-                    ("Single pass write failed because OP-1A container duration %"PRId64" "
-                     "does not equal set input duration %"PRId64,
+                    ("Single pass write failed because OP-1A container duration %" PRId64 " "
+                     "does not equal set input duration %" PRId64,
                      mIndexTable->GetDuration(), mInputDuration));
     }
-
-
-    // complete write for tracks
-
-    size_t i;
-    for (i = 0; i < mTracks.size(); i++)
-        mTracks[i]->CompleteWrite();
 
 
     // update metadata sets with duration
@@ -349,15 +429,15 @@ void OP1AFile::CompleteWrite()
     // non-minimal partition flavour: write any remaining VBE index segments
 
     if (!(mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR) &&
+        !(mFlavour & OP1A_BODY_PARTITIONS_FLAVOUR) &&
         mIndexTable->IsVBE() && mIndexTable->HaveSegments())
     {
         Partition &index_partition = mMXFFile->createPartition();
         index_partition.setKey(&MXF_PP_K(ClosedComplete, Body)); // will be complete when memory flushed
-        index_partition.setIndexSID(INDEX_SID);
+        index_partition.setIndexSID(mStreamIdHelper.GetId("IndexStream"));
         index_partition.setBodySID(0);
         index_partition.setKagSize(mKAGSize);
         index_partition.write(mMXFFile);
-        index_partition.fillToKag(mMXFFile);
 
         mIndexTable->WriteSegments(mMXFFile, &index_partition, true);
     }
@@ -367,21 +447,25 @@ void OP1AFile::CompleteWrite()
 
     if (mSupportCompleteSinglePass) {
         BMX_CHECK_M(mMXFFile->tell() == (int64_t)mMXFFile->getPartition(0).getFooterPartition(),
-                    ("Single pass write failed because footer partition offset %"PRId64" "
-                     "is not at expected offset %"PRId64,
+                    ("Single pass write failed because footer partition offset %" PRId64 " "
+                     "is not at expected offset %" PRId64,
                      mMXFFile->tell(), mMXFFile->getPartition(0).getFooterPartition()));
     }
 
     Partition &footer_partition = mMXFFile->createPartition();
     footer_partition.setKey(&MXF_PP_K(ClosedComplete, Footer)); // will be complete when memory flushed
-    if ((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR) && mIndexTable->IsVBE() && mIndexTable->HaveSegments())
-        footer_partition.setIndexSID(INDEX_SID);
+    if (((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR) || (mFlavour & OP1A_BODY_PARTITIONS_FLAVOUR)) &&
+          mIndexTable->IsVBE() && mIndexTable->HaveSegments())
+    {
+        footer_partition.setIndexSID(mStreamIdHelper.GetId("IndexStream"));
+    }
     else
+    {
         footer_partition.setIndexSID(0);
+    }
     footer_partition.setBodySID(0);
     footer_partition.setKagSize(mKAGSize);
     footer_partition.write(mMXFFile);
-    footer_partition.fillToKag(mMXFFile);
 
 
     // write (complete) header metadata if it is a single pass write and the header partition is incomplete
@@ -392,9 +476,9 @@ void OP1AFile::CompleteWrite()
     }
 
 
-    // minimal partitions flavour: write any remaining VBE index segments
+    // minimal/body partitions flavour: write any remaining VBE index segments
 
-    if ((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR) &&
+    if (((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR) || (mFlavour & OP1A_BODY_PARTITIONS_FLAVOUR)) &&
         mIndexTable->IsVBE() && mIndexTable->HaveSegments())
     {
         mIndexTable->WriteSegments(mMXFFile, &footer_partition, true);
@@ -416,42 +500,70 @@ void OP1AFile::CompleteWrite()
     // update previous partitions if not writing in a single pass
 
     if (!(mFlavour & OP1A_SINGLE_PASS_WRITE_FLAVOUR)) {
-        // re-write the header metadata in the header partition
+        // re-write header and cbe index partition to memory
 
-        mMXFFile->seek(mHeaderMetadataStartPos, SEEK_SET);
+        mMXFFile->seek(0, SEEK_SET);
+        mMXFFile->openMemoryFile(MEMORY_WRITE_CHUNK_SIZE);
+        mMXFFile->setMemoryPartitionIndexes(0, 0); // overwriting and updating from header pp
+
+
+        // re-write the header partition pack
+
+        Partition &header_partition = mMXFFile->getPartition(0);
+        header_partition.setKey(&MXF_PP_K(ClosedComplete, Header));
+        header_partition.setFooterPartition(footer_partition.getThisPartition());
+        header_partition.write(mMXFFile);
+
+
+        // re-write the header metadata
+
         PositionFillerWriter pos_filler_writer(mHeaderMetadataEndPos);
-        mHeaderMetadata->write(mMXFFile, &mMXFFile->getPartition(0), &pos_filler_writer);
+        mHeaderMetadata->write(mMXFFile, &header_partition, &pos_filler_writer);
 
 
-        // re-write the CBE index table segment(s)
+        // re-write the CBE index table segment(s) in the header partition
 
-        if (!mFirstWrite && mIndexTable->IsCBE()) {
-            mMXFFile->seek(mCBEIndexTableStartPos, SEEK_SET);
-            mIndexTable->WriteSegments(mMXFFile,
-                                       &mMXFFile->getPartition(((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR) ? 0 : 1)),
-                                       true);
+        if (!mFirstWrite && mIndexTable->IsCBE() && mCBEIndexPartitionIndex == 0) {
+            Partition &index_partition = mMXFFile->getPartition(mCBEIndexPartitionIndex);
+            mIndexTable->WriteSegments(mMXFFile, &index_partition, true);
         }
 
 
-        // update and re-write the partition packs
+        // update header and index partition packs and flush memory writes to file
 
-        const std::vector<Partition*> &partitions = mMXFFile->getPartitions();
-        for (i = 0; i < partitions.size(); i++) {
-            if (mxf_is_header_partition_pack(partitions[i]->getKey()))
-                partitions[i]->setKey(&MXF_PP_K(ClosedComplete, Header));
-            else if (mxf_is_body_partition_pack(partitions[i]->getKey()))
-                partitions[i]->setKey(&MXF_PP_K(ClosedComplete, Body));
-        }
         mMXFFile->updatePartitions();
+        mMXFFile->closeMemoryFile();
+
+
+        // update and re-write the generic stream partition packs
+
+        mMXFFile->updateGenericStreamPartitions();
+
+
+        // re-write the CBE index table segment(s) that are not in the header metadata
+
+        if (!mFirstWrite && mIndexTable->IsCBE() && mCBEIndexPartitionIndex > 0) {
+            Partition &index_partition = mMXFFile->getPartition(mCBEIndexPartitionIndex);
+            mMXFFile->seek(index_partition.getThisPartition(), SEEK_SET);
+            index_partition.setKey(&MXF_PP_K(ClosedComplete, Body));
+            index_partition.setFooterPartition(footer_partition.getThisPartition());
+            index_partition.write(mMXFFile);
+            mIndexTable->WriteSegments(mMXFFile, &index_partition, true);
+        }
+
+
+        // update and re-write the body partition packs
+
+        if (!(mFlavour & OP1A_NO_BODY_PART_UPDATE_FLAVOUR))
+            mMXFFile->updateBodyPartitions(&MXF_PP_K(ClosedComplete, Body));
     }
 
 
     // finalize md5
 
-    if (mMXFMD5WrapperFile) {
-        unsigned char digest[16];
-        md5_wrap_finalize(mMXFMD5WrapperFile, digest);
-        mMD5DigestStr = md5_digest_str(digest);
+    if (mMXFChecksumFile) {
+        mxf_checksum_file_final(mMXFChecksumFile);
+        mMD5DigestStr = mxf_checksum_file_digest_str(mMXFChecksumFile);
     }
 
 
@@ -483,7 +595,7 @@ OP1ATrack* OP1AFile::GetTrack(uint32_t track_index)
 
 void OP1AFile::CreateHeaderMetadata()
 {
-    BMX_ASSERT(!mHeaderMetadata);
+    BMX_ASSERT(!mHavePreparedHeaderMetadata);
 
     int64_t material_track_duration = -1; // unknown - could be updated if not writing in a single pass
     int64_t source_track_duration = -1; // unknown - could be updated if not writing in a single pass
@@ -497,26 +609,33 @@ void OP1AFile::CreateHeaderMetadata()
         source_track_origin = mOutputStartOffset;
     }
 
-    // create the header metadata
-    mDataModel = new DataModel();
-    mHeaderMetadata = new HeaderMetadata(mDataModel);
-
-
     // Preface
     Preface *preface = new Preface(mHeaderMetadata);
     preface->setLastModifiedDate(mCreationDate);
     preface->setVersion((mFlavour & OP1A_377_2004_FLAVOUR) ? MXF_PREFACE_VER(1, 2) : MXF_PREFACE_VER(1, 3));
-    preface->setOperationalPattern(MXF_OP_L(1a, MultiTrack_Stream_Internal));
+    if (mTracks.size() <= 1)
+        preface->setOperationalPattern(MXF_OP_L(1a, UniTrack_Stream_Internal));
+    else
+        preface->setOperationalPattern(MXF_OP_L(1a, MultiTrack_Stream_Internal));
     set<mxfUL>::const_iterator iter;
     for (iter = mEssenceContainerULs.begin(); iter != mEssenceContainerULs.end(); iter++)
         preface->appendEssenceContainers(*iter);
-    preface->setDMSchemes(vector<mxfUL>());
+    if (mXMLTracks.empty())
+        preface->setDMSchemes(vector<mxfUL>());
+    else
+        preface->appendDMSchemes(MXF_DM_L(RP2057));
+    if ((mFlavour & OP1A_ARD_ZDF_HDF_PROFILE_FLAVOUR))
+        preface->setIsRIPPresent(true);
 
     // Preface - Identification
     Identification *ident = new Identification(mHeaderMetadata);
     preface->appendIdentifications(ident);
     ident->initialise(mCompanyName, mProductName, mVersionString, mProductUID);
-    ident->setProductVersion(mProductVersion);
+    if (mProductVersion.major != 0 || mProductVersion.minor != 0 || mProductVersion.patch != 0 ||
+        mProductVersion.build != 0 || mProductVersion.release != 0)
+    {
+        ident->setProductVersion(mProductVersion);
+    }
     ident->setModificationDate(mCreationDate);
     ident->setThisGenerationUID(mGenerationUID);
 
@@ -528,8 +647,8 @@ void OP1AFile::CreateHeaderMetadata()
     EssenceContainerData *ess_container_data = new EssenceContainerData(mHeaderMetadata);
     content_storage->appendEssenceContainerData(ess_container_data);
     ess_container_data->setLinkedPackageUID(mFileSourcePackageUID);
-    ess_container_data->setIndexSID(INDEX_SID);
-    ess_container_data->setBodySID(BODY_SID);
+    ess_container_data->setIndexSID(mStreamIdHelper.GetId("IndexStream"));
+    ess_container_data->setBodySID(mStreamIdHelper.GetId("BodyStream"));
 
     // Preface - ContentStorage - MaterialPackage
     mMaterialPackage = new MaterialPackage(mHeaderMetadata);
@@ -544,9 +663,9 @@ void OP1AFile::CreateHeaderMetadata()
     Track *timecode_track = new Track(mHeaderMetadata);
     mMaterialPackage->appendTracks(timecode_track);
     timecode_track->setTrackName(TIMECODE_TRACK_NAME);
-    timecode_track->setTrackID(TIMECODE_TRACK_ID);
+    timecode_track->setTrackID(mTrackIdHelper.GetId("TimecodeTrack"));
     timecode_track->setTrackNumber(0);
-    timecode_track->setEditRate(mFrameRate);
+    timecode_track->setEditRate(mEditRate);
     timecode_track->setOrigin(0);
 
     // Preface - ContentStorage - MaterialPackage - Timecode Track - Sequence
@@ -575,9 +694,9 @@ void OP1AFile::CreateHeaderMetadata()
     timecode_track = new Track(mHeaderMetadata);
     mFileSourcePackage->appendTracks(timecode_track);
     timecode_track->setTrackName(TIMECODE_TRACK_NAME);
-    timecode_track->setTrackID(TIMECODE_TRACK_ID);
+    timecode_track->setTrackID(901);
     timecode_track->setTrackNumber(0);
-    timecode_track->setEditRate(mFrameRate);
+    timecode_track->setEditRate(mEditRate);
     timecode_track->setOrigin(source_track_origin);
 
     // Preface - ContentStorage - SourcePackage - Timecode Track - Sequence
@@ -601,7 +720,7 @@ void OP1AFile::CreateHeaderMetadata()
     if (mTracks.size() > 1) {
         MultipleDescriptor *mult_descriptor = new MultipleDescriptor(mHeaderMetadata);
         mFileSourcePackage->setDescriptor(mult_descriptor);
-        mult_descriptor->setSampleRate(mFrameRate);
+        mult_descriptor->setSampleRate(mEditRate);
         mult_descriptor->setEssenceContainer(MXF_EC_L(MultipleWrappings));
         if (mSupportCompleteSinglePass)
             mult_descriptor->setContainerDuration(mInputDuration);
@@ -611,11 +730,17 @@ void OP1AFile::CreateHeaderMetadata()
     size_t i;
     for (i = 0; i < mTracks.size(); i++)
         mTracks[i]->AddHeaderMetadata(mHeaderMetadata, mMaterialPackage, mFileSourcePackage);
+    for (i = 0; i < mXMLTracks.size(); i++)
+        mXMLTracks[i]->AddHeaderMetadata(mHeaderMetadata, mMaterialPackage);
 }
 
 void OP1AFile::CreateFile()
 {
-    BMX_ASSERT(mHeaderMetadata);
+    BMX_ASSERT(mHavePreparedHeaderMetadata);
+
+    // Check all the referenced MCA labels are present
+
+    CheckMCALabels();
 
 
     // set minimum llen
@@ -623,7 +748,7 @@ void OP1AFile::CreateFile()
     mMXFFile->setMinLLen(MIN_LLEN);
 
 
-    // write to memory until essence data writing starts or there is no essence and the file is completed
+    // write to memory until generic stream / essence data writing starts or there is no essence and the file is completed
 
     mMXFFile->openMemoryFile(MEMORY_WRITE_CHUNK_SIZE);
 
@@ -636,26 +761,55 @@ void OP1AFile::CreateFile()
     else
         header_partition.setKey(&MXF_PP_K(OpenIncomplete, Header));
     header_partition.setVersion(1, ((mFlavour & OP1A_377_2004_FLAVOUR) ? 2 : 3));
-    if ((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR) && mIndexTable->IsCBE())
-        header_partition.setIndexSID(INDEX_SID);
+    if (((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR) || (mFlavour & OP1A_BODY_PARTITIONS_FLAVOUR)) &&
+        mIndexTable->IsCBE())
+    {
+        header_partition.setIndexSID(mStreamIdHelper.GetId("IndexStream"));
+    }
     else
+    {
         header_partition.setIndexSID(0);
+    }
     if ((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR))
-        header_partition.setBodySID(BODY_SID);
+        header_partition.setBodySID(mStreamIdHelper.GetId("BodyStream"));
     else
         header_partition.setBodySID(0);
     header_partition.setKagSize(mKAGSize);
-    header_partition.setOperationalPattern(&MXF_OP_L(1a, MultiTrack_Stream_Internal));
+    if (mTracks.size() <= 1)
+        header_partition.setOperationalPattern(&MXF_OP_L(1a, UniTrack_Stream_Internal));
+    else
+        header_partition.setOperationalPattern(&MXF_OP_L(1a, MultiTrack_Stream_Internal));
     set<mxfUL>::const_iterator iter;
     for (iter = mEssenceContainerULs.begin(); iter != mEssenceContainerULs.end(); iter++)
         header_partition.addEssenceContainer(&(*iter));
     header_partition.write(mMXFFile);
-    header_partition.fillToKag(mMXFFile);
 
-    mHeaderMetadataStartPos = mMXFFile->tell(); // need this position when we re-write the header metadata
     KAGFillerWriter reserve_filler_writer(&header_partition, mReserveMinBytes);
     mHeaderMetadata->write(mMXFFile, &header_partition, &reserve_filler_writer);
     mHeaderMetadataEndPos = mMXFFile->tell();  // need this position when we re-write the header metadata
+
+
+    // write generic stream partitions
+
+    size_t i;
+    for (i = 0; i < mXMLTracks.size(); i++) {
+        OP1AXMLTrack *xml_track = mXMLTracks[i];
+        if (xml_track->RequireStreamPartition()) {
+            if (header_partition.getIndexSID() || header_partition.getBodySID())
+                BMX_EXCEPTION(("XML track's Generic Stream partition is currently incompatible with minimal partitions flavour"));
+            if (mSupportCompleteSinglePass)
+                BMX_EXCEPTION(("XML track's Generic Stream partition is currently incompatible with single pass flavour"));
+
+            if (mMXFFile->isMemoryFileOpen())
+                mMXFFile->closeMemoryFile();
+
+            Partition &stream_partition = mMXFFile->createPartition();
+            stream_partition.setKey(&MXF_GS_PP_K(GenericStream));
+            stream_partition.setBodySID(xml_track->GetStreamId());
+            stream_partition.write(mMXFFile);
+            xml_track->WriteStreamXMLData(mMXFFile);
+        }
+    }
 }
 
 void OP1AFile::UpdatePackageMetadata()
@@ -737,103 +891,152 @@ void OP1AFile::WriteContentPackages(bool end_of_samples)
 
             if (mIndexTable->IsCBE()) {
                 // make sure edit unit byte count and delta entries are known
-                mCPManager->UpdateIndexTable(mIndexTable, mCPManager->HaveContentPackages(2) ? 2 : 1);
+                mCPManager->UpdateIndexTable(mCPManager->HaveContentPackages(2) ? 2 : 1);
 
-                if ((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR)) {
-                    mCBEIndexTableStartPos = mMXFFile->tell(); // need this position when we re-write the index segment
-                    mIndexTable->WriteSegments(mMXFFile, &mMXFFile->getPartition(0), false);
+                if ((mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR) || (mFlavour & OP1A_BODY_PARTITIONS_FLAVOUR)) {
+                    mCBEIndexPartitionIndex = 0;
                 } else {
                     Partition &index_partition = mMXFFile->createPartition();
                     if (mSupportCompleteSinglePass)
                         index_partition.setKey(&MXF_PP_K(ClosedComplete, Body));
                     else
-                        index_partition.setKey(&MXF_PP_K(OpenIncomplete, Body));
-                    index_partition.setIndexSID(INDEX_SID);
+                        index_partition.setKey(&MXF_PP_K(OpenComplete, Body));
+                    index_partition.setIndexSID(mStreamIdHelper.GetId("IndexStream"));
                     index_partition.setBodySID(0);
                     index_partition.setKagSize(mKAGSize);
                     index_partition.write(mMXFFile);
-                    index_partition.fillToKag(mMXFFile);
 
-                    mCBEIndexTableStartPos = mMXFFile->tell(); // need this position when we re-write the index segment
-                    mIndexTable->WriteSegments(mMXFFile, &index_partition, false);
+                    mCBEIndexPartitionIndex = mMXFFile->getPartitions().size() - 1;
                 }
+                mIndexTable->WriteSegments(mMXFFile, &mMXFFile->getPartition(mCBEIndexPartitionIndex), false);
             }
 
             if (!(mFlavour & OP1A_MIN_PARTITIONS_FLAVOUR))
                 start_ess_partition = true;
             mFirstWrite = false;
         }
+        else if (mWaitForIndexComplete)
+        {
+            if (!mIndexTable->RequireUpdatesAtPos(mCPManager->GetPosition() - 1)) {
+                mWaitForIndexComplete = false;
+                start_ess_partition = true;
+            } else if (end_of_samples) {
+                mWaitForIndexComplete = false;
+            } else {
+                if (mCPManager->HaveContentPackages(MAX_BUFFERED_CONTENT_PACKAGES + 1)) {
+                    BMX_EXCEPTION(("Memory buffered content packages > %d whilst waiting for index updates",
+                                   MAX_BUFFERED_CONTENT_PACKAGES));
+                }
+                break;
+            }
+        }
         else if (mPartitionInterval > 0 &&
                  mPartitionFrameCount >= mPartitionInterval && mIndexTable->CanStartPartition())
         {
             BMX_ASSERT(!mSupportCompleteSinglePass);
 
+            mPartitionFrameCount = 0;
+            if (mIndexTable->RequireUpdatesAtPos(mCPManager->GetPosition() - 1)) {
+                if (!end_of_samples) {
+                    mWaitForIndexComplete = true;
+                    break;
+                }
+            } else {
+                start_ess_partition = true;
+            }
+        }
+
+        if (start_ess_partition) {
             // write VBE index table segments and ensure new essence partition is started
 
-            if (mIndexTable->IsVBE()) {
-                BMX_ASSERT(mIndexTable->HaveSegments());
+            if (mIndexTable->IsVBE() && mIndexTable->HaveSegments()) {
+                BMX_ASSERT(!mSupportCompleteSinglePass);
+
+                mMXFFile->openMemoryFile(MEMORY_WRITE_CHUNK_SIZE);
 
                 Partition &index_partition = mMXFFile->createPartition();
-                index_partition.setKey(&MXF_PP_K(OpenIncomplete, Body));
-                index_partition.setIndexSID(INDEX_SID);
-                index_partition.setBodySID(0);
-                index_partition.setKagSize(mKAGSize);
+                index_partition.setKey(&MXF_PP_K(OpenComplete, Body));
+                index_partition.setIndexSID(mStreamIdHelper.GetId("IndexStream"));
+                if ((mFlavour & OP1A_BODY_PARTITIONS_FLAVOUR)) {
+                    index_partition.setBodySID(mStreamIdHelper.GetId("BodyStream"));
+                    index_partition.setKagSize(mEssencePartitionKAGSize);
+                    index_partition.setBodyOffset(ess_partition_body_offset);
+                    start_ess_partition = false;
+                } else {
+                    index_partition.setBodySID(0);
+                    index_partition.setKagSize(mKAGSize);
+                }
                 index_partition.write(mMXFFile);
-                index_partition.fillToKag(mMXFFile);
 
                 mIndexTable->WriteSegments(mMXFFile, &index_partition, true);
             }
 
-            start_ess_partition = true;
-            mPartitionFrameCount = 0;
-        }
-
-        if (start_ess_partition) {
             Partition &ess_partition = mMXFFile->createPartition();
             if (mSupportCompleteSinglePass)
                 ess_partition.setKey(&MXF_PP_K(ClosedComplete, Body));
             else
-                ess_partition.setKey(&MXF_PP_K(OpenIncomplete, Body));
+                ess_partition.setKey(&MXF_PP_K(OpenComplete, Body));
             ess_partition.setIndexSID(0);
-            ess_partition.setBodySID(BODY_SID);
+            ess_partition.setBodySID(mStreamIdHelper.GetId("BodyStream"));
             ess_partition.setKagSize(mEssencePartitionKAGSize);
             ess_partition.setBodyOffset(ess_partition_body_offset);
             ess_partition.write(mMXFFile);
-            ess_partition.fillToKag(mMXFFile);
         }
 
         if (mMXFFile->isMemoryFileOpen()) {
-            UpdateFirstPartitions();
+            if (mSupportCompleteSinglePass)
+                SetPartitionsFooterOffset();
+            mMXFFile->updatePartitions();
             mMXFFile->closeMemoryFile();
         }
 
-        mCPManager->WriteNextContentPackage(mMXFFile, mIndexTable);
+        mCPManager->WriteNextContentPackage();
 
         if (mPartitionInterval > 0)
             mPartitionFrameCount++;
     }
 
-    if (end_of_samples && mMXFFile->isMemoryFileOpen()) {
-        UpdateFirstPartitions();
-        mMXFFile->closeMemoryFile();
+    if (end_of_samples) {
+        mCPManager->CompleteWrite();
+
+        if (mMXFFile->isMemoryFileOpen()) {
+            if (mSupportCompleteSinglePass)
+                SetPartitionsFooterOffset();
+            mMXFFile->updatePartitions();
+            mMXFFile->closeMemoryFile();
+        }
     }
 }
 
-void OP1AFile::UpdateFirstPartitions()
+void OP1AFile::SetPartitionsFooterOffset()
 {
-    if (mSupportCompleteSinglePass) {
-        uint32_t first_size = 0, non_first_size = 0;
-        mIndexTable->GetCBEEditUnitSize(&first_size, &non_first_size);
+    BMX_ASSERT(mSupportCompleteSinglePass);
 
-        mFooterPartitionOffset = mMXFFile->tell();
-        if (mInputDuration > 0)
-            mFooterPartitionOffset += first_size + (mInputDuration - 1) * non_first_size;
+    uint32_t first_size = 0, non_first_size = 0;
+    mIndexTable->GetCBEEditUnitSize(&first_size, &non_first_size);
 
-        size_t i;
-        for (i = 0; i < mMXFFile->getPartitions().size(); i++)
-            mMXFFile->getPartitions()[i]->setFooterPartition(mFooterPartitionOffset);
-    }
+    mFooterPartitionOffset = mMXFFile->tell();
+    if (mInputDuration > 0)
+        mFooterPartitionOffset += first_size + (mInputDuration - 1) * non_first_size;
 
-    mMXFFile->updatePartitions();
+    size_t i;
+    for (i = 0; i < mMXFFile->getPartitions().size(); i++)
+        mMXFFile->getPartitions()[i]->setFooterPartition(mFooterPartitionOffset);
 }
 
+void OP1AFile::CheckMCALabels()
+{
+    vector<MCALabelSubDescriptor*> mca_labels;
+    size_t t;
+    for (t = 0; t < mTracks.size(); t++) {
+        OP1APCMTrack *pcm_track = dynamic_cast<OP1APCMTrack*>(mTracks[t]);
+        if (!pcm_track)
+            continue;
+
+        const vector<MCALabelSubDescriptor*> &track_mca_labels = pcm_track->GetMCALabels();
+        mca_labels.insert(mca_labels.end(), track_mca_labels.begin(), track_mca_labels.end());
+    }
+
+    if (!check_mca_labels(mca_labels))
+      BMX_EXCEPTION(("Invalid MCA labels"));
+}

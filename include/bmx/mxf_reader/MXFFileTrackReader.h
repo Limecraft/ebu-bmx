@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_FILE_TRACK_READER_H__
-#define __BMX_MXF_FILE_TRACK_READER_H__
+#ifndef BMX_MXF_FILE_TRACK_READER_H_
+#define BMX_MXF_FILE_TRACK_READER_H_
 
 
 #include <bmx/mxf_reader/MXFTrackReader.h>
@@ -49,22 +49,29 @@ public:
                        mxfpp::FileDescriptor *file_descriptor, mxfpp::SourcePackage *file_source_package);
     virtual ~MXFFileTrackReader();
 
+    virtual void SetEmptyFrames(bool enable);
     virtual void SetEnable(bool enable);
     virtual void SetFrameBuffer(FrameBuffer *frame_buffer, bool take_ownership);
 
 public:
-    virtual void GetAvailableReadLimits(int64_t *start_position, int64_t *duration) const;
+    virtual std::vector<size_t> GetFileIds(bool internal_ess_only) const;
+    MXFFileReader* GetFileReader() { return mFileReader; }
+
+    virtual void GetReadLimits(bool limit_to_available, int64_t *start_position, int64_t *duration) const;
     virtual void SetReadLimits();
     virtual void SetReadLimits(int64_t start_position, int64_t duration, bool seek_start_position);
     virtual int64_t GetReadStartPosition() const;
     virtual int64_t GetReadDuration() const;
 
     virtual uint32_t Read(uint32_t num_samples, bool is_top = true);
+    virtual bool ReadError() const;
+    virtual std::string ReadErrorMessage() const;
     virtual void Seek(int64_t position);
 
     virtual int64_t GetPosition() const;
-    virtual mxfRational GetSampleRate() const;
+    virtual mxfRational GetEditRate() const;
     virtual int64_t GetDuration() const;
+    virtual int64_t GetOrigin() const;
 
     virtual bool GetIndexEntry(MXFIndexEntryExt *entry, int64_t position = CURRENT_POSITION_VALUE) const;
 
@@ -88,7 +95,7 @@ public:
 
 public:
     virtual MXFFrameBuffer* GetMXFFrameBuffer() { return &mFrameBuffer; }
-    virtual void SetNextFramePosition(int64_t position);
+    virtual void SetNextFramePosition(Rational edit_rate, int64_t position);
 
 private:
     MXFFileReader *mFileReader;

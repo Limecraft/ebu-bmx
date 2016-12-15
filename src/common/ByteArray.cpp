@@ -64,6 +64,18 @@ ByteArray::ByteArray(uint32_t size)
     Allocate(size);
 }
 
+ByteArray::ByteArray(const ByteArray &from)
+{
+    mBytes          = 0;
+    mSize           = 0;
+    mIsCopy         = false;
+    mAllocatedSize  = 0;
+    mAllocBlockSize = 256;
+
+    if (from.mBytes)
+        CopyBytes(from.mBytes, from.mSize);
+}
+
 ByteArray::~ByteArray()
 {
     if (!mIsCopy)
@@ -84,6 +96,15 @@ unsigned char* ByteArray::GetBytes() const
 uint32_t ByteArray::GetSize() const
 {
     return mSize;
+}
+
+
+void ByteArray::TakeBytes()
+{
+    mBytes = 0;
+    mSize = 0;
+    mIsCopy = false;
+    mAllocatedSize = 0;
 }
 
 void ByteArray::Append(const unsigned char *bytes, uint32_t size)
@@ -193,6 +214,7 @@ void ByteArray::Reallocate(uint32_t min_size)
         delete [] mBytes;
         mBytes = 0;
     }
+    memset(&newBytes[mSize], 0, size - mSize);
     mBytes = newBytes;
     mAllocatedSize = size;
 

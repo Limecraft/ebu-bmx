@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_WAVE_TRACK_WRITER_H__
-#define __BMX_WAVE_TRACK_WRITER_H__
+#ifndef BMX_WAVE_TRACK_WRITER_H_
+#define BMX_WAVE_TRACK_WRITER_H_
 
 
 #include <bmx/wave/WaveIO.h>
@@ -61,6 +61,7 @@ public:
 public:
     uint32_t GetSampleSize() const;
     Rational GetSamplingRate() const;
+    uint16_t GetChannelCount() const { return mChannelCount; }
 
     int64_t GetDuration() const;
 

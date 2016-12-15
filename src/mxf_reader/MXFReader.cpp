@@ -49,12 +49,19 @@ using namespace mxfpp;
 
 MXFReader::MXFReader()
 {
-    mSampleRate = ZERO_RATIONAL;
+    mEditRate = ZERO_RATIONAL;
     mDuration = 0;
+    mOrigin = 0;
+    mReadError = false;
     mMaterialStartTimecode = 0;
     mFileSourceStartTimecode = 0;
     mPhysicalSourceStartTimecode = 0;
     mMaterialPackageUID = g_Null_UMID;
+    mMaterialPackage = 0;
+    mFileIndex = new MXFFileIndex();
+    mOwnFileIndex = true;
+    mMCALabelIndex = new MXFMCALabelIndex();
+    mOwnMCALabelIndex = true;
 }
 
 MXFReader::~MXFReader()
@@ -62,6 +69,36 @@ MXFReader::~MXFReader()
     delete mMaterialStartTimecode;
     delete mFileSourceStartTimecode;
     delete mPhysicalSourceStartTimecode;
+    if (mOwnFileIndex)
+        delete mFileIndex;
+    if (mOwnMCALabelIndex)
+        delete mMCALabelIndex;
+}
+
+void MXFReader::SetFileIndex(MXFFileIndex *file_index, bool take_ownership)
+{
+    if (file_index == mFileIndex)
+        return;
+
+    file_index->RegisterFiles(mFileIndex);
+
+    if (mOwnFileIndex)
+        delete mFileIndex;
+    mFileIndex = file_index;
+    mOwnFileIndex = take_ownership;
+}
+
+void MXFReader::SetMCALabelIndex(MXFMCALabelIndex *label_index, bool take_ownership)
+{
+    if (label_index == mMCALabelIndex)
+        return;
+
+    label_index->RegisterLabels(mMCALabelIndex);
+
+    if (mOwnMCALabelIndex)
+        delete mMCALabelIndex;
+    mMCALabelIndex = label_index;
+    mOwnMCALabelIndex = take_ownership;
 }
 
 void MXFReader::ClearFrameBuffers(bool del_frames)
@@ -74,7 +111,7 @@ void MXFReader::ClearFrameBuffers(bool del_frames)
 Timecode MXFReader::GetMaterialTimecode(int64_t position) const
 {
     if (!HaveMaterialTimecode())
-        return Timecode(get_rounded_tc_base(mSampleRate), false);
+        return Timecode(get_rounded_tc_base(mEditRate), false);
 
     return CreateTimecode(mMaterialStartTimecode, position);
 }
@@ -82,7 +119,7 @@ Timecode MXFReader::GetMaterialTimecode(int64_t position) const
 Timecode MXFReader::GetFileSourceTimecode(int64_t position) const
 {
     if (!HaveFileSourceTimecode())
-        return Timecode(get_rounded_tc_base(mSampleRate), false);
+        return Timecode(get_rounded_tc_base(mEditRate), false);
 
     return CreateTimecode(mFileSourceStartTimecode, position);
 }
@@ -90,7 +127,7 @@ Timecode MXFReader::GetFileSourceTimecode(int64_t position) const
 Timecode MXFReader::GetPhysicalSourceTimecode(int64_t position) const
 {
     if (!HavePhysicalSourceTimecode())
-        return Timecode(get_rounded_tc_base(mSampleRate), false);
+        return Timecode(get_rounded_tc_base(mEditRate), false);
 
     return CreateTimecode(mPhysicalSourceStartTimecode, position);
 }
@@ -109,7 +146,7 @@ Timecode MXFReader::GetPlayoutTimecode(int64_t position) const
     else if (HavePhysicalSourceTimecode())
         return GetPhysicalSourceTimecode(position);
 
-    return Timecode(get_rounded_tc_base(mSampleRate), false);
+    return Timecode(get_rounded_tc_base(mEditRate), false);
 }
 
 bool MXFReader::HaveSourceTimecode() const
@@ -124,7 +161,7 @@ Timecode MXFReader::GetSourceTimecode(int64_t position) const
     else if (HavePhysicalSourceTimecode())
         return GetPhysicalSourceTimecode(position);
 
-    return Timecode(get_rounded_tc_base(mSampleRate), false);
+    return Timecode(get_rounded_tc_base(mEditRate), false);
 }
 
 Timecode MXFReader::CreateTimecode(const Timecode *start_timecode, int64_t position) const
@@ -134,8 +171,34 @@ Timecode MXFReader::CreateTimecode(const Timecode *start_timecode, int64_t posit
         offset = GetPosition();
 
     Timecode timecode(*start_timecode);
-    timecode.AddOffset(offset, mSampleRate);
+    timecode.AddOffset(offset, mEditRate);
 
     return timecode;
+}
+
+bool MXFReader::CheckReadLastFrame()
+{
+    if (GetReadDuration() <= 0)
+        return true;
+
+    int64_t last_pos = GetReadStartPosition() + GetReadDuration() - 1;
+    int64_t current_pos = GetPosition();
+
+    try
+    {
+        SetTemporaryFrameBuffer(true);
+        Seek(last_pos);
+        uint32_t num_read = Read(1);
+        SetTemporaryFrameBuffer(false);
+        Seek(current_pos);
+
+        return num_read == 1;
+    }
+    catch (...)
+    {
+        SetTemporaryFrameBuffer(false);
+        Seek(current_pos);
+        return false;
+    }
 }
 

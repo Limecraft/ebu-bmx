@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_VERSION_H__
-#define __BMX_VERSION_H__
+#ifndef BMX_VERSION_H_
+#define BMX_VERSION_H_
 
 
 #include <string>
@@ -40,7 +40,7 @@
 
 #define BMX_VERSION_MAJOR    0
 #define BMX_VERSION_MINOR    1
-#define BMX_VERSION_MICRO    2
+#define BMX_VERSION_MICRO    3
 
 #define BMX_MXF_VERSION_RELEASE  2   /* 0 = Unknown version
                                         1 = Released version
@@ -63,6 +63,7 @@ std::string get_bmx_library_name();
 std::string get_bmx_version_string();
 std::string get_bmx_scm_version_string();
 std::string get_bmx_build_string();
+Timestamp get_bmx_build_timestamp();
 
 std::string get_bmx_company_name();
 UUID get_bmx_product_uid();

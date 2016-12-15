@@ -36,12 +36,17 @@
 #define __STDC_FORMAT_MACROS
 #define __STDC_LIMIT_MACROS
 
+#include <cstdio>
+
 #include <algorithm>
 #include <memory>
+#include <set>
 
 #include <bmx/mxf_reader/MXFFileReader.h>
 #include <bmx/mxf_helper/PictureMXFDescriptorHelper.h>
-#include <bmx/essence_parser/AVCIEssenceParser.h>
+#include <bmx/essence_parser/AVCEssenceParser.h>
+#include <bmx/st436/ST436Element.h>
+#include <bmx/MXFHTTPFile.h>
 #include <bmx/MXFUtils.h>
 #include <bmx/Utils.h>
 #include <bmx/BMXException.h>
@@ -52,13 +57,27 @@ using namespace bmx;
 using namespace mxfpp;
 
 
-#define TO_ESS_READER_POS(pos)      (pos + mOrigin)
-#define FROM_ESS_READER_POS(pos)    (pos - mOrigin)
+#define TO_ESS_READER_POS(pos)      (pos + mFileOrigin)
+#define FROM_ESS_READER_POS(pos)    (pos - mFileOrigin)
 
 #define CONVERT_INTERNAL_DUR(dur)   convert_duration_higher(dur, mExternalSampleSequences[i], mExternalSampleSequenceSizes[i])
 #define CONVERT_EXTERNAL_DUR(dur)   convert_duration_lower(dur, mExternalSampleSequences[i], mExternalSampleSequenceSizes[i])
 #define CONVERT_INTERNAL_POS(pos)   convert_position_higher(pos, mExternalSampleSequences[i], mExternalSampleSequenceSizes[i])
 #define CONVERT_EXTERNAL_POS(pos)   convert_position_lower(pos, mExternalSampleSequences[i], mExternalSampleSequenceSizes[i])
+
+#define CHECK_SUPPORT_READ_LIMITS                                                       \
+    do {                                                                                \
+        if (!IsComplete())                                                              \
+            BMX_EXCEPTION(("Read limits are not supported when the file is "            \
+                           "incomplete or duration is unknown"));                       \
+    } while (0)
+
+#define CHECK_SUPPORT_PC_RO_INFO                                                        \
+    do {                                                                                \
+        if (!IsComplete())                                                              \
+            BMX_EXCEPTION(("Precharge and rollout information are not available "       \
+                           "when the file is incomplete or duration is unknown"));      \
+    } while (0)
 
 
 
@@ -66,7 +85,7 @@ static const char *RESULT_STRINGS[] =
 {
     "success",
     "could not open file",
-    "invalid file",
+    "invalid or not an MXF file",
     "not supported",
     "header metadata not found",
     "invalid header metadata",
@@ -77,26 +96,11 @@ static const char *RESULT_STRINGS[] =
 };
 
 
-static const EssenceType INTER_FRAME_ENCODING_ESSENCE_TYPES[] =
-{
-    MPEG2LG_422P_HL_1080I,
-    MPEG2LG_422P_HL_1080P,
-    MPEG2LG_422P_HL_720P,
-    MPEG2LG_MP_HL_1920_1080I,
-    MPEG2LG_MP_HL_1920_1080P,
-    MPEG2LG_MP_HL_1440_1080I,
-    MPEG2LG_MP_HL_1440_1080P,
-    MPEG2LG_MP_HL_720P,
-    MPEG2LG_MP_H14_1080I,
-    MPEG2LG_MP_H14_1080P,
-};
-
-
-#define THROW_RESULT(result) \
-{ \
-    log_warn("Open error '%s' near %s:%d\n", #result, __FILE__, __LINE__); \
-    throw result; \
-}
+#define THROW_RESULT(result)                                                        \
+    do {                                                                            \
+        log_warn("Open error '%s' near %s:%d\n", #result, __FILE__, __LINE__);      \
+        throw result;                                                               \
+    } while (0)
 
 
 
@@ -106,8 +110,8 @@ static bool compare_track_reader(const MXFTrackReader *left_reader, const MXFTra
     const MXFTrackInfo *right = right_reader->GetTrackInfo();
 
     // data kind
-    if (left->is_picture != right->is_picture)
-        return left->is_picture;
+    if (left->data_def != right->data_def)
+        return left->data_def < right->data_def;
 
     // track number
     if (left->material_track_number != 0) {
@@ -130,7 +134,7 @@ static bool compare_track_reader(const MXFTrackReader *left_reader, const MXFTra
 string MXFFileReader::ResultToString(OpenResult result)
 {
     size_t index = (size_t)(result);
-    BMX_ASSERT(index < ARRAY_SIZE(RESULT_STRINGS));
+    BMX_ASSERT(index < BMX_ARRAY_SIZE(RESULT_STRINGS));
 
     return RESULT_STRINGS[index];
 }
@@ -139,20 +143,28 @@ string MXFFileReader::ResultToString(OpenResult result)
 MXFFileReader::MXFFileReader()
 : MXFReader()
 {
-    BMX_ASSERT(MXF_RESULT_FAIL + 1 == ARRAY_SIZE(RESULT_STRINGS));
+    BMX_ASSERT(MXF_RESULT_FAIL + 1 == BMX_ARRAY_SIZE(RESULT_STRINGS));
 
+    mFileId = (size_t)(-1);
     mFile = 0;
+    mEmptyFrames = false;
+    mEmptyFramesSet = false;
     mHeaderMetadata = 0;
     mMXFVersion = 0;
-    mIsClipWrapped = false;
+    mOPLabel = g_Null_UL;
+    mGuessedWrappingType = MXF_FRAME_WRAPPED;
+    mWrappingType = MXF_UNKNOWN_WRAPPING_TYPE;
     mBodySID = 0;
     mIndexSID = 0;
-    mOrigin = 0;
     mReadStartPosition = 0;
-    mReadDuration = 0;
+    mReadDuration = -1;
+    mFileOrigin = 0;
     mEssenceReader = 0;
+    mRequireFrameInfoCount = 0;
+    mST436ManifestCount = 2;
 
     mDataModel = new DataModel();
+    mHeaderMetadata = new AvidHeaderMetadata(mDataModel);
 
     mPackageResolver = new DefaultMXFPackageResolver();
     mOwnPackageResolver = true;
@@ -175,6 +187,8 @@ MXFFileReader::~MXFFileReader()
     size_t i;
     for (i = 0; i < mInternalTrackReaders.size(); i++)
         delete mInternalTrackReaders[i];
+    for (i = 0; i < mInternalTextObjects.size(); i++)
+        delete mInternalTextObjects[i];
 
     // mPackageResolver owns external readers
 }
@@ -197,6 +211,42 @@ void MXFFileReader::SetFileFactory(MXFFileFactory *factory, bool take_ownership)
     mOwnFilefactory = take_ownership;
 }
 
+void MXFFileReader::SetEmptyFrames(bool enable)
+{
+    mEmptyFrames = enable;
+    mEmptyFramesSet = true;
+
+    size_t i;
+    for (i = 0; i < mTrackReaders.size(); i++)
+        mTrackReaders[i]->SetEmptyFrames(enable);
+}
+
+void MXFFileReader::SetST436ManifestFrameCount(uint32_t count)
+{
+    mST436ManifestCount = count;
+}
+
+void MXFFileReader::SetFileIndex(MXFFileIndex *file_index, bool take_ownership)
+{
+    if (mFileId != (size_t)(-1))
+        mFileId = file_index->RegisterFile(mFileIndex->GetEntry(mFileId));
+
+    MXFReader::SetFileIndex(file_index, take_ownership);
+
+    size_t i;
+    for (i = 0; i < mExternalReaders.size(); i++)
+        mExternalReaders[i]->SetFileIndex(file_index, false);
+}
+
+void MXFFileReader::SetMCALabelIndex(MXFMCALabelIndex *label_index, bool take_ownership)
+{
+    MXFReader::SetMCALabelIndex(label_index, take_ownership);
+
+    size_t i;
+    for (i = 0; i < mExternalReaders.size(); i++)
+        mExternalReaders[i]->SetMCALabelIndex(label_index, false);
+}
+
 MXFFileReader::OpenResult MXFFileReader::Open(string filename)
 {
     File *file = 0;
@@ -204,7 +254,11 @@ MXFFileReader::OpenResult MXFFileReader::Open(string filename)
     {
         file = mFileFactory->OpenRead(filename);
 
-        OpenResult result = Open(file, filename);
+        OpenResult result;
+        if (filename.empty())
+            result = Open(file, URI("stdin:"), URI(), "");
+        else
+            result = Open(file, filename);
         if (result != MXF_RESULT_SUCCESS)
             delete file;
 
@@ -219,64 +273,88 @@ MXFFileReader::OpenResult MXFFileReader::Open(string filename)
 
 MXFFileReader::OpenResult MXFFileReader::Open(File *file, string filename)
 {
+    try
+    {
+        URI rel_uri, abs_uri;
+        if (mxf_http_is_url(filename)) {
+            BMX_CHECK(abs_uri.Parse(filename));
+        } else {
+            BMX_CHECK(abs_uri.ParseFilename(filename));
+            if (abs_uri.IsRelative()) {
+                rel_uri = abs_uri;
+
+                URI base_uri;
+                BMX_CHECK(base_uri.ParseDirectory(get_cwd()));
+                abs_uri.MakeAbsolute(base_uri);
+            }
+        }
+
+        return Open(file, abs_uri, rel_uri, filename);
+    }
+    catch (...)
+    {
+        return MXF_RESULT_OPEN_FAIL;
+    }
+}
+
+MXFFileReader::OpenResult MXFFileReader::Open(File *file, const URI &abs_uri, const URI &rel_uri, const string &filename)
+{
     OpenResult result;
 
     try
     {
         mFile = file;
-        mFilename = filename;
-
+        mFileId = mFileIndex->RegisterFile(abs_uri, rel_uri, filename);
 
         // read the header partition pack and check the operational pattern
-        if (!file->readHeaderPartition())
+        if (!file->readHeaderPartition()) {
+            log_error("Failed to find and read header partition\n");
             THROW_RESULT(MXF_RESULT_INVALID_FILE);
+        }
         Partition &header_partition = file->getPartition(0);
 
         if (!mxf_is_op_atom(header_partition.getOperationalPattern()) &&
             !mxf_is_op_1a(header_partition.getOperationalPattern()) &&
             !mxf_is_op_1b(header_partition.getOperationalPattern()))
         {
+            log_error("Operational pattern is not supported\n");
             THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
         }
 
 
-        BMX_CHECK(mAbsoluteURI.ParseFilename(filename));
-        if (mAbsoluteURI.IsRelative()) {
-            URI base_uri;
-            BMX_CHECK(base_uri.ParseDirectory(get_cwd()));
-            mAbsoluteURI.MakeAbsolute(base_uri);
+        mOPLabel = *header_partition.getOperationalPattern();
+
+
+        // get or guess the essence wrapping type
+
+        vector<mxfUL> essence_labels = header_partition.getEssenceContainers();
+        size_t i;
+        for (i = 0; i < essence_labels.size(); i++) {
+            mWrappingType = mxf_get_essence_wrapping_type(&essence_labels[i]);
+            if (mWrappingType != MXF_UNKNOWN_WRAPPING_TYPE)
+                break;
+        }
+        if (mWrappingType == MXF_UNKNOWN_WRAPPING_TYPE) {
+            // guess the wrapping type based on the OP
+            mGuessedWrappingType = (mxf_is_op_atom(&mOPLabel) ? MXF_CLIP_WRAPPED : MXF_FRAME_WRAPPED);
         }
 
-        // TODO: require a table that maps essence container labels to wrapping type
 
-        // guess the wrapping type based on the OP
-        mIsClipWrapped = mxf_is_op_atom(header_partition.getOperationalPattern());
+        // try read all partitions find and get last partition with header metadata
 
-        // change frame wrapped guess if file is op1a containing clip wrapped pcm audio
-        if (!mIsClipWrapped) {
-            vector<mxfUL> essence_labels = header_partition.getEssenceContainers();
-            size_t i;
-            for (i = 0; i < essence_labels.size(); i++) {
-                if (mxf_equals_ul_mod_regver(&essence_labels[i], &MXF_EC_L(BWFClipWrapped)) ||
-                    mxf_equals_ul_mod_regver(&essence_labels[i], &MXF_EC_L(AES3ClipWrapped)))
-                {
-                    mIsClipWrapped = true;
-                    break;
-                }
+        bool file_is_complete;
+        if (mFile->isSeekable()) {
+            file_is_complete = mFile->readPartitions();
+            if (!file_is_complete) {
+                BMX_ASSERT(mFile->getPartitions().size() == 1);
+                if (mFile->getPartition(0).isClosed() || mFile->getPartition(0).getFooterPartition() != 0)
+                    log_warn("Failed to read all partitions. File may be incomplete or invalid\n");
             }
+        } else {
+            file_is_complete = false;
         }
-
-
-        mHeaderMetadata = new AvidHeaderMetadata(mDataModel);
-
-        // find last partition with header metadata
-
-        if (!mFile->readPartitions())
-            log_warn("Failed to read all partitions. File may be incomplete or invalid\n");
-
         const vector<Partition*> &partitions = mFile->getPartitions();
         Partition *metadata_partition = 0;
-        size_t i;
         for (i = partitions.size(); i > 0 ; i--) {
             if (partitions[i - 1]->getHeaderByteCount() > 0) {
                 metadata_partition = partitions[i - 1];
@@ -286,124 +364,60 @@ MXFFileReader::OpenResult MXFFileReader::Open(File *file, string filename)
         if (!metadata_partition)
             THROW_RESULT(MXF_RESULT_NO_HEADER_METADATA);
 
-        // read the header metadata
+
+        // read and process the header metadata
 
         mxfKey key;
         uint8_t llen;
         uint64_t len;
-
-        mFile->seek(metadata_partition->getThisPartition(), SEEK_SET);
-        mFile->readKL(&key, &llen, &len);
-        mFile->skip(len);
+        if (mFile->isSeekable()) {
+            mFile->seek(metadata_partition->getThisPartition(), SEEK_SET);
+            mFile->readKL(&key, &llen, &len);
+            mFile->skip(len);
+        }
         mFile->readNextNonFillerKL(&key, &llen, &len);
         BMX_CHECK(mxf_is_header_metadata(&key));
+
         mHeaderMetadata->read(mFile, metadata_partition, &key, llen, len);
 
-        // extract resolved package info
-        mPackageResolver->ExtractResolvedPackages(this);
-
-        // process header metadata
         ProcessMetadata(metadata_partition);
-        if (mTrackReaders.empty())
-            THROW_RESULT(MXF_RESULT_NO_ESSENCE);
 
-        if (mIsClipWrapped && mInternalTrackReaders.size() > 1)
-            THROW_RESULT(MXF_RESULT_NOT_SUPPORTED); // only support single track for clip-wrapped essence
-
-        // set clip sample rate if not set (ie. essence is external)
-        if (mSampleRate.numerator == 0) {
-            BMX_ASSERT(mInternalTrackReaders.empty());
-            // the lowest external sample rate is the clip sample rate
-            float lowest_sample_rate = 1000000.0;
-            size_t i;
-            for (i = 0; i < mTrackReaders.size(); i++) {
-                float track_sample_rate = mTrackReaders[i]->GetSampleRate().numerator /
-                                            (float)mTrackReaders[i]->GetSampleRate().denominator;
-                if (track_sample_rate < lowest_sample_rate) {
-                    mSampleRate = mTrackReaders[i]->GetSampleRate();
-                    lowest_sample_rate = track_sample_rate;
-                }
-            }
-            BMX_CHECK(mSampleRate.numerator != 0);
-        } else {
-            BMX_ASSERT(!mInternalTrackReaders.empty());
-        }
-
-        // extract the sample sequences for each external reader
-        for (i = 0; i < mExternalReaders.size(); i++) {
-            vector<uint32_t> sample_sequence;
-            if (!get_sample_sequence(mSampleRate, mExternalReaders[i]->GetSampleRate(), &sample_sequence)) {
-                mxfRational external_sample_rate = mExternalReaders[i]->GetSampleRate();
-                log_error("Incompatible clip sample rate (%d/%d) for referenced file (%d/%d)\n",
-                          mSampleRate.numerator, mSampleRate.denominator,
-                          external_sample_rate.numerator, external_sample_rate.denominator);
-                THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
-            }
-
-            mExternalSampleSequences.push_back(sample_sequence);
-            mExternalSampleSequenceSizes.push_back(get_sequence_size(sample_sequence));
-        }
-
-        // clip duration is the minimum duration (tracks should really have equal duration)
-        mDuration = -1;
-        for (i = 0; i < mInternalTrackReaders.size(); i++) {
-            int64_t track_duration = convert_duration(mInternalTrackReaders[i]->GetTrackInfo()->edit_rate,
-                                                      mInternalTrackReaders[i]->GetTrackInfo()->duration,
-                                                      mSampleRate,
-                                                      ROUND_AUTO);
-            if (mDuration < 0 || track_duration < mDuration)
-                mDuration = track_duration;
-        }
-        for (i = 0; i < mExternalReaders.size(); i++) {
-            int64_t internal_duration = CONVERT_EXTERNAL_DUR(mExternalReaders[i]->GetDuration());
-            if (mDuration < 0 || internal_duration < mDuration)
-                mDuration = internal_duration;
-        }
-
-        // force external readers to have the clip's duration
-        for (i = 0; i < mExternalReaders.size(); i++)
-            mExternalReaders[i]->ForceDuration(CONVERT_INTERNAL_POS(mDuration));
-
-        // disable unused external tracks
-        for (i = 0; i < mExternalReaders.size(); i++) {
-            size_t j;
-            for (j = 0; j < mExternalReaders[i]->GetNumTrackReaders(); j++) {
-                size_t k;
-                for (k = 0; k < mExternalTrackReaders.size(); k++) {
-                    if (mExternalTrackReaders[k] == mExternalReaders[i]->GetTrackReader(j))
-                        break;
-                }
-                if (k >= mExternalTrackReaders.size())
-                    mExternalReaders[i]->GetTrackReader(j)->SetEnable(false);
-            }
-        }
 
         // create internal essence reader
         if (!mInternalTrackReaders.empty()) {
-            mEssenceReader = new EssenceReader(this);
-            if (mEssenceReader->GetIndexedDuration() > 0)
-                BMX_CHECK(mEssenceReader->GetEditRate() == mSampleRate);
+            mEssenceReader = new EssenceReader(this, file_is_complete);
+
+            CheckRequireFrameInfo();
+            if (mRequireFrameInfoCount > 0)
+                ExtractFrameInfo();
+        } else {
+            mWrappingType = MXF_UNKNOWN_WRAPPING_TYPE;
         }
 
-        // extract info from first frame if required
-        if (!mInternalTrackReaders.empty())
-            ExtractInfoFromFirstFrame();
+        if (IsComplete()) {
+            if (mIndexSID && mEssenceReader && mEssenceReader->GetIndexedDuration() < mDuration) {
+                log_warn("Essence index duration %" PRId64 " is less than track duration %" PRId64 "\n",
+                         mEssenceReader->GetIndexedDuration(), mDuration);
+            }
+            if (GetMaxPrecharge(0, true) != GetMaxPrecharge(0, false)) {
+                log_warn("Possibly not enough precharge available (available=%d, required=%d)\n",
+                         GetMaxPrecharge(0, true), GetMaxPrecharge(0, false));
+            }
+            if (GetMaxRollout(mDuration - 1, true) != GetMaxRollout(mDuration - 1, false)) {
+                log_warn("Possibly not enough rollout available (available=%d, required=%d)\n",
+                         GetMaxRollout(mDuration - 1, true), GetMaxRollout(mDuration - 1, false));
+            }
 
-        // do some checks, set read limits to [0+precharge, duration+rollout) and seek to start (0+precharge)
-        if (mEssenceReader && mEssenceReader->GetIndexedDuration() < mDuration) {
-            log_warn("Essence index duration %"PRId64" is less than track duration %"PRId64"\n",
-                     mEssenceReader->GetIndexedDuration(), mDuration);
-        }
-        if (GetMaxPrecharge(0, true) != GetMaxPrecharge(0, false)) {
-            log_warn("Possibly not enough precharge available (available=%d, required=%d)\n",
-                     GetMaxPrecharge(0, true), GetMaxPrecharge(0, false));
-        }
-        if (GetMaxRollout(mDuration - 1, true) != GetMaxRollout(mDuration - 1, false)) {
-            log_warn("Possibly not enough rollout available (available=%d, required=%d)\n",
-                     GetMaxRollout(mDuration - 1, true), GetMaxRollout(mDuration - 1, false));
+            SetReadLimits();
+        } else if (mDuration > 0) {
+            SetReadLimits(- mOrigin, mOrigin + mDuration, false);
         }
 
-        SetReadLimits();
+
+        if (mEmptyFramesSet) {
+            for (i = 0; i < mTrackReaders.size(); i++)
+                mTrackReaders[i]->SetEmptyFrames(mEmptyFrames);
+        }
 
 
         result = MXF_RESULT_SUCCESS;
@@ -448,19 +462,85 @@ MXFFileReader::OpenResult MXFFileReader::Open(File *file, string filename)
     return result;
 }
 
-void MXFFileReader::GetAvailableReadLimits(int64_t *start_position, int64_t *duration) const
+MXFFileReader* MXFFileReader::GetFileReader(size_t file_id)
 {
-    int16_t precharge = GetMaxPrecharge(0, true);
-    int16_t rollout = GetMaxRollout(mDuration - 1, true);
+    MXFFileReader *reader = 0;
+    if (file_id == mFileId) {
+        reader = this;
+    } else {
+        size_t i;
+        for (i = 0; i < mExternalReaders.size(); i++) {
+            reader = mExternalReaders[i]->GetFileReader(file_id);
+            if (reader)
+                break;
+        }
+    }
+
+    return reader;
+}
+
+vector<size_t> MXFFileReader::GetFileIds(bool internal_ess_only) const
+{
+    set<size_t> file_id_set;
+    size_t i;
+    for (i = 0; i < mTrackReaders.size(); i++) {
+        vector<size_t> track_file_ids = mTrackReaders[i]->GetFileIds(internal_ess_only);
+        file_id_set.insert(track_file_ids.begin(), track_file_ids.end());
+    }
+    if (!internal_ess_only)
+        file_id_set.insert(mFileId);
+
+    vector<size_t> file_ids;
+    file_ids.insert(file_ids.begin(), file_id_set.begin(), file_id_set.end());
+
+    return file_ids;
+}
+
+bool MXFFileReader::IsComplete() const
+{
+    if (mDuration < 0 || (mEssenceReader && !mEssenceReader->IsComplete()))
+        return false;
+
+    size_t i;
+    for (i = 0; i < mExternalReaders.size(); i++) {
+        if (!mExternalReaders[i]->IsComplete())
+            return false;
+    }
+
+    return true;
+}
+
+bool MXFFileReader::IsSeekable() const
+{
+    if (mEssenceReader && !mFile->isSeekable())
+        return false;
+
+    size_t i;
+    for (i = 0; i < mExternalReaders.size(); i++) {
+        if (!mExternalReaders[i]->IsSeekable())
+            return false;
+    }
+
+    return true;
+}
+
+void MXFFileReader::GetReadLimits(bool limit_to_available, int64_t *start_position, int64_t *duration) const
+{
+    CHECK_SUPPORT_READ_LIMITS;
+
+    int16_t precharge = GetMaxPrecharge(0, limit_to_available);
+    int16_t rollout = GetMaxRollout(mDuration - 1, limit_to_available);
     *start_position = 0 + precharge;
     *duration = - precharge + mDuration + rollout;
 }
 
 void MXFFileReader::SetReadLimits()
 {
+    CHECK_SUPPORT_READ_LIMITS;
+
     int64_t start_position;
     int64_t duration;
-    GetAvailableReadLimits(&start_position, &duration);
+    GetReadLimits(false, &start_position, &duration);
     SetReadLimits(start_position, duration, true);
 }
 
@@ -492,47 +572,85 @@ void MXFFileReader::SetReadLimits(int64_t start_position, int64_t duration, bool
 
 uint32_t MXFFileReader::Read(uint32_t num_samples, bool is_top)
 {
-    int64_t current_position = GetPosition();
+    mReadError = false;
+    mReadErrorMessage.clear();
 
-    if (is_top) {
-        SetNextFramePosition(current_position);
-        SetNextFrameTrackPositions();
+    if (mRequireFrameInfoCount > 0) {
+        ExtractFrameInfo();
+        if (mRequireFrameInfoCount > 0) {
+            mReadError = true;
+            mReadErrorMessage = "Failed to extract information from frame(s)";
+            return 0;
+        }
     }
 
-    uint32_t max_num_read = 0;
-    if (InternalIsEnabled())
-        max_num_read = mEssenceReader->Read(num_samples);
+    int64_t current_position = GetPosition();
 
-    size_t i;
-    for (i = 0; i < mExternalReaders.size(); i++) {
-        if (!mExternalReaders[i]->IsEnabled())
-            continue;
+    StartRead();
+    try
+    {
+        if (is_top) {
+            SetNextFramePosition(mEditRate, current_position);
+            SetNextFrameTrackPositions();
+        }
 
-        int64_t external_current_position = CONVERT_INTERNAL_POS(current_position);
+        uint32_t max_num_read = 0;
+        if (InternalIsEnabled())
+            max_num_read = mEssenceReader->Read(num_samples);
 
-        // ensure external reader is in sync
-        if (mExternalReaders[i]->GetPosition() != external_current_position)
-            mExternalReaders[i]->Seek(external_current_position);
+        size_t i;
+        for (i = 0; i < mExternalReaders.size(); i++) {
+            if (!mExternalReaders[i]->IsEnabled())
+                continue;
+
+            int64_t external_current_position = CONVERT_INTERNAL_POS(current_position);
+
+            // ensure external reader is in sync
+            if (mExternalReaders[i]->GetPosition() != external_current_position)
+                mExternalReaders[i]->Seek(external_current_position);
 
 
-        uint32_t num_external_samples = (uint32_t)convert_duration_higher(num_samples,
-                                                                          current_position,
+            uint32_t num_external_samples = (uint32_t)convert_duration_higher(num_samples,
+                                                                              current_position,
+                                                                              mExternalSampleSequences[i],
+                                                                              mExternalSampleSequenceSizes[i]);
+
+            uint32_t external_num_read = mExternalReaders[i]->Read(num_external_samples, false);
+            if (external_num_read < num_external_samples && mExternalReaders[i]->ReadError())
+                throw BMXException(mExternalReaders[i]->ReadErrorMessage());
+
+            uint32_t internal_num_read = (uint32_t)convert_duration_lower(external_num_read,
+                                                                          external_current_position,
                                                                           mExternalSampleSequences[i],
                                                                           mExternalSampleSequenceSizes[i]);
 
-        uint32_t external_num_read = mExternalReaders[i]->Read(num_external_samples, false);
+            if (internal_num_read > max_num_read)
+                max_num_read = internal_num_read;
+        }
 
-        uint32_t internal_num_read = (uint32_t)convert_duration_lower(external_num_read,
-                                                                      external_current_position,
-                                                                      mExternalSampleSequences[i],
-                                                                      mExternalSampleSequenceSizes[i]);
+        BMX_ASSERT(max_num_read <= num_samples);
 
-        if (internal_num_read > max_num_read)
-            max_num_read = internal_num_read;
+        CompleteRead();
+
+        return max_num_read;
+    }
+    catch (const MXFException &ex)
+    {
+        mReadErrorMessage = ex.getMessage();
+    }
+    catch (const BMXException &ex)
+    {
+        mReadErrorMessage = ex.what();
+    }
+    catch (...)
+    {
     }
 
-    BMX_ASSERT(max_num_read <= num_samples);
-    return max_num_read;
+    mReadError = true;
+    AbortRead();
+    Seek(current_position);
+
+    return 0;
 }
 
 void MXFFileReader::Seek(int64_t position)
@@ -570,6 +688,8 @@ int64_t MXFFileReader::GetPosition() const
 
 int16_t MXFFileReader::GetMaxPrecharge(int64_t position, bool limit_to_available) const
 {
+    CHECK_SUPPORT_PC_RO_INFO;
+
     int64_t target_position = position;
     if (target_position == CURRENT_POSITION_VALUE)
         target_position = GetPosition();
@@ -593,16 +713,16 @@ int16_t MXFFileReader::GetMaxPrecharge(int64_t position, bool limit_to_available
         int16_t ext_reader_precharge = mExternalReaders[i]->GetMaxPrecharge(CONVERT_INTERNAL_POS(target_position),
                                                                             limit_to_available);
         if (ext_reader_precharge != 0) {
-            BMX_CHECK_M(mExternalReaders[i]->GetSampleRate() == mSampleRate,
+            BMX_CHECK_M(mExternalReaders[i]->GetEditRate() == mEditRate,
                        ("Currently only support precharge in external reader if "
-                        "external reader sample rate equals group sample rate"));
+                        "external reader edit rate equals group edit rate"));
             if (ext_reader_precharge < precharge)
                 precharge = ext_reader_precharge;
         }
 
         if (limit_to_available) {
             int64_t ext_start_position, ext_duration;
-            mExternalReaders[i]->GetAvailableReadLimits(&ext_start_position, &ext_duration);
+            mExternalReaders[i]->GetReadLimits(true, &ext_start_position, &ext_duration);
             int64_t int_max_start_position = CONVERT_EXTERNAL_POS(ext_start_position);
             if (int_max_start_position > max_start_position)
                 max_start_position = int_max_start_position;
@@ -617,6 +737,8 @@ int16_t MXFFileReader::GetMaxPrecharge(int64_t position, bool limit_to_available
 
 int16_t MXFFileReader::GetMaxRollout(int64_t position, bool limit_to_available) const
 {
+    CHECK_SUPPORT_PC_RO_INFO;
+
     int64_t target_position = position;
     if (target_position == CURRENT_POSITION_VALUE)
         target_position = GetPosition();
@@ -640,16 +762,16 @@ int16_t MXFFileReader::GetMaxRollout(int64_t position, bool limit_to_available) 
         int16_t ext_reader_rollout = mExternalReaders[i]->GetMaxRollout(CONVERT_INTERNAL_POS(target_position + 1) - 1,
                                                                         limit_to_available);
         if (ext_reader_rollout != 0) {
-            BMX_CHECK_M(mExternalReaders[i]->GetSampleRate() == mSampleRate,
+            BMX_CHECK_M(mExternalReaders[i]->GetEditRate() == mEditRate,
                        ("Currently only support rollout in external reader if "
-                        "external reader sample rate equals group sample rate"));
+                        "external reader edit rate equals group edit rate"));
             if (ext_reader_rollout > rollout)
                 rollout = ext_reader_rollout;
         }
 
         if (limit_to_available) {
             int64_t ext_start_position, ext_duration;
-            mExternalReaders[i]->GetAvailableReadLimits(&ext_start_position, &ext_duration);
+            mExternalReaders[i]->GetReadLimits(true, &ext_start_position, &ext_duration);
             int64_t int_min_end_position = CONVERT_EXTERNAL_DUR(ext_start_position + ext_duration);
             if (int_min_end_position < min_end_position)
                 min_end_position = int_min_end_position;
@@ -670,7 +792,7 @@ bool MXFFileReader::HaveFixedLeadFillerOffset() const
         // note that edit_rate and lead_filler_offset are from this MXF file's material package
         int64_t offset = convert_position(mTrackReaders[i]->GetTrackInfo()->edit_rate,
                                           mTrackReaders[i]->GetTrackInfo()->lead_filler_offset,
-                                          mSampleRate,
+                                          mEditRate,
                                           ROUND_UP);
         if (i == 0)
             fixed_offset = offset;
@@ -689,7 +811,7 @@ int64_t MXFFileReader::GetFixedLeadFillerOffset() const
         // note that edit_rate and lead_filler_offset are from this MXF file's material package
         int64_t offset = convert_position(mTrackReaders[i]->GetTrackInfo()->edit_rate,
                                           mTrackReaders[i]->GetTrackInfo()->lead_filler_offset,
-                                          mSampleRate,
+                                          mEditRate,
                                           ROUND_UP);
         if (i == 0)
             fixed_offset = offset;
@@ -719,14 +841,16 @@ bool MXFFileReader::IsEnabled() const
 
 int16_t MXFFileReader::GetTrackPrecharge(size_t track_index, int64_t clip_position, int16_t clip_precharge) const
 {
+    CHECK_SUPPORT_PC_RO_INFO;
+
     if (clip_precharge >= 0)
         return 0;
 
     MXFTrackReader *track_reader = GetTrackReader(track_index);
 
-    BMX_CHECK_M(track_reader->GetSampleRate() == mSampleRate,
+    BMX_CHECK_M(track_reader->GetEditRate() == mEditRate,
                ("Currently only support precharge in external reader if "
-                "external reader sample rate equals group sample rate"));
+                "external reader edit rate equals group edit rate"));
     (void)clip_position;
 
     return clip_precharge;
@@ -734,25 +858,33 @@ int16_t MXFFileReader::GetTrackPrecharge(size_t track_index, int64_t clip_positi
 
 int16_t MXFFileReader::GetTrackRollout(size_t track_index, int64_t clip_position, int16_t clip_rollout) const
 {
+    CHECK_SUPPORT_PC_RO_INFO;
+
     if (clip_rollout <= 0)
         return 0;
 
     MXFTrackReader *track_reader = GetTrackReader(track_index);
 
-    BMX_CHECK_M(track_reader->GetSampleRate() == mSampleRate,
+    BMX_CHECK_M(track_reader->GetEditRate() == mEditRate,
                ("Currently only support rollout in external reader if "
-                "external reader sample rate equals group sample rate"));
+                "external reader edit rate equals group edit rate"));
     (void)clip_position;
 
     return clip_rollout;
 }
 
-void MXFFileReader::SetNextFramePosition(int64_t position)
+MXFTextObject* MXFFileReader::GetTextObject(size_t index) const
+{
+    BMX_CHECK(index < mTextObjects.size());
+    return mTextObjects[index];
+}
+
+void MXFFileReader::SetNextFramePosition(Rational edit_rate, int64_t position)
 {
     size_t i;
     for (i = 0; i < mTrackReaders.size(); i++) {
         if (mTrackReaders[i]->IsEnabled())
-            mTrackReaders[i]->GetMXFFrameBuffer()->SetNextFramePosition(position);
+            mTrackReaders[i]->GetMXFFrameBuffer()->SetNextFramePosition(edit_rate, position);
     }
 }
 
@@ -762,9 +894,16 @@ void MXFFileReader::SetNextFrameTrackPositions()
     for (i = 0; i < mTrackReaders.size(); i++) {
         if (mTrackReaders[i]->IsEnabled()) {
             mTrackReaders[i]->GetMXFFrameBuffer()->SetNextFrameTrackPosition(
-                mTrackReaders[i]->GetPosition());
+                mTrackReaders[i]->GetEditRate(), mTrackReaders[i]->GetPosition());
         }
     }
+}
+
+void MXFFileReader::SetTemporaryFrameBuffer(bool enable)
+{
+    size_t i;
+    for (i = 0; i < mInternalTrackReaders.size(); i++)
+        mInternalTrackReaders[i]->GetMXFFrameBuffer()->SetTemporaryBuffer(enable);
 }
 
 void MXFFileReader::ProcessMetadata(Partition *partition)
@@ -772,35 +911,46 @@ void MXFFileReader::ProcessMetadata(Partition *partition)
     Preface *preface = mHeaderMetadata->getPreface();
     mMXFVersion = preface->getVersion();
 
-    // create track readers for each picture or sound material package track
+    // index packages from this file
+    mPackageResolver->ExtractPackages(this);
 
-    MaterialPackage *material_package = preface->findMaterialPackage();
-    BMX_CHECK(material_package);
-    mMaterialPackageUID = material_package->getPackageUID();
-    if (material_package->haveName())
-        mMaterialPackageName = material_package->getName();
+
+    // create track readers for each material package picture, sound or data track
+
+    mMaterialPackage = preface->findMaterialPackage();
+    BMX_CHECK(mMaterialPackage);
+    mMaterialPackageUID = mMaterialPackage->getPackageUID();
+    if (mMaterialPackage->haveName())
+        mMaterialPackageName = mMaterialPackage->getName();
 
     vector<SourcePackage*> file_source_packages = preface->findFileSourcePackages();
-    if (file_source_packages.empty())
+    if (file_source_packages.empty()) {
+        log_error("File with no file source packages is not supported\n");
         THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
+    }
 
     Track *infile_mp_track = 0;
-    vector<GenericTrack*> mp_tracks = material_package->getTracks();
+    vector<GenericTrack*> mp_tracks = mMaterialPackage->getTracks();
+    uint32_t skipped_track_count = 0;
     size_t i;
     for (i = 0; i < mp_tracks.size(); i++) {
         Track *mp_track = dynamic_cast<Track*>(mp_tracks[i]);
         if (!mp_track)
             continue;
 
-        // skip if not picture or sound
+        // skip if not picture, sound or data
         StructuralComponent *track_sequence = mp_track->getSequence();
-        mxfUL data_def = track_sequence->getDataDefinition();
-        bool is_picture = mxf_is_picture(&data_def);
-        bool is_sound = mxf_is_sound(&data_def);
-        if (!is_picture && !is_sound)
+        mxfUL data_def_ul = track_sequence->getDataDefinition();
+        MXFDataDefEnum data_def = mxf_get_ddef_enum(&data_def_ul);
+        if (data_def != MXF_PICTURE_DDEF && data_def != MXF_SOUND_DDEF && data_def != MXF_DATA_DDEF)
             continue;
 
-        // check material package track origin is 0
+        uint32_t mp_track_id = 0;
+        if (mp_track->haveTrackID())
+            mp_track_id = mp_track->getTrackID();
+        else
+            log_warn("Material track does not have a TrackID property\n");
+
         BMX_CHECK(mp_track->getOrigin() == 0);
 
         // skip if not a Sequence->SourceClip or SourceClip
@@ -822,36 +972,49 @@ void MXFFileReader::ProcessMetadata(Partition *partition)
                         // Essence Group used in Avid files, e.g. alpha component tracks
                         auto_ptr<ObjectIterator> choices(components[j]->getStrongRefArrayItem(
                             &MXF_ITEM_K(EssenceGroup, Choices)));
-                        if (!choices->next()) {
+                        if (!choices->next())
                             BMX_EXCEPTION(("0 Choices found in EssenceGroup"));
-                        }
                         mp_source_clip = dynamic_cast<SourceClip*>(choices->get());
-                        BMX_CHECK_M(mp_source_clip,
-                                    ("Unsupported (not a SourceClip) metadata set referenced by EssenceGroup::Choices"));
+                        if (!mp_source_clip) {
+                            log_error("EssenceGroup choice that is not a SourceClip is not supported\n");
+                            THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
+                        }
                         if (choices->next())
-                            log_warn("Multiple choices in EssenceGroup; chose the first one\n");
+                            log_warn("Using the first SourceClip in EssenceGroup containing multiple choices\n");
                     } else {
-                        BMX_EXCEPTION(("StructuralComponent in Sequence is not a SourceClip, Filler or EssenceGroup"));
+                        log_error("StructuralComponent in Sequence is not a SourceClip, Filler or EssenceGroup\n");
+                        THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
                     }
                 }
             }
         }
-        if (!mp_source_clip)
+        if (!mp_source_clip) {
+            log_warn("Skipping material package track %u which has no SourceClip\n", mp_track_id);
+            skipped_track_count++;
             continue;
+        }
 
         // Avid files will have a non-zero start position if consolidation of a sequence
         // required the first couple of frames to be re-encoded. The start position is equivalent to
         // using origin to indicate precharge.
         if (mp_source_clip->getStartPosition() != 0) {
+            if (mp_source_clip->getStartPosition() < 0) {
+                log_error("A negative material package source clip StartPosition is not supported\n");
+                THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
+            }
             mxfUL op = preface->getOperationalPattern();
-            BMX_CHECK_M(mxf_is_op_atom(&op) && mp_source_clip->getStartPosition() >= 0,
-                        ("Non-zero material package source clip start position is not supported"));
+            if (!mxf_is_op_atom(&op)) {
+                log_error("Non-zero material package source clip StartPosition is only supported in OP-Atom files\n");
+                THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
+            }
         }
 
         // skip if could not resolve the source clip
         vector<ResolvedPackage> resolved_packages = mPackageResolver->ResolveSourceClip(mp_source_clip);
-        if (resolved_packages.empty())
+        if (resolved_packages.empty()) {
+            skipped_track_count++;
             continue;
+        }
 
         // require top level file source package to be described in this file
         const ResolvedPackage *resolved_package = 0;
@@ -862,33 +1025,70 @@ void MXFFileReader::ProcessMetadata(Partition *partition)
                 break;
             }
         }
-        if (!resolved_package)
+        if (!resolved_package) {
+            log_error("An external top level file source package is not supported\n");
             THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
+        }
         SourcePackage *file_source_package = dynamic_cast<SourcePackage*>(resolved_package->package);
         BMX_CHECK(file_source_package);
+
+        // check the material package track and file source package track data definitions match
+        uint32_t fsp_track_id = 0;
+        if (resolved_package->generic_track->haveTrackID())
+            fsp_track_id = resolved_package->generic_track->getTrackID();
+        Track *fsp_track = dynamic_cast<Track*>(resolved_package->generic_track);
+        MXFDataDefEnum fsp_data_def = MXF_UNKNOWN_DDEF;
+        if (fsp_track) {
+            StructuralComponent *fsp_sequence = fsp_track->getSequence();
+            mxfUL fsp_data_def_ul = fsp_sequence->getDataDefinition();
+            fsp_data_def = mxf_get_ddef_enum(&fsp_data_def_ul);
+        }
+        if (!fsp_track || fsp_data_def != data_def) {
+            log_error("Material package track %u data def does not match referenced "
+                      "file source package track %u data def\n", mp_track_id, fsp_track_id);
+            THROW_RESULT(MXF_RESULT_INVALID_FILE);
+        }
 
         MXFTrackReader *track_reader = 0;
         if (resolved_package->external_essence) {
             track_reader = GetExternalTrackReader(mp_source_clip, file_source_package);
-            if (!track_reader)
+            if (!track_reader) {
+                log_warn("Skipping material package track %u because external source track could not be found\n",
+                         mp_track_id);
+                skipped_track_count++;
                 continue;
+            }
 
-            // modify material package info in track info
+            // change external track's material package info to internal material package info
             MXFTrackInfo *track_info = track_reader->GetTrackInfo();
-            track_info->material_package_uid = material_package->getPackageUID();
-            if (mp_track->haveTrackID())
-                track_info->material_track_id = mp_track->getTrackID();
-            else
-                track_info->material_track_id = 0;
+            track_info->material_package_uid  = mMaterialPackage->getPackageUID();
+            track_info->material_track_id     = mp_track_id;
             track_info->material_track_number = mp_track->getTrackNumber();
-            track_info->edit_rate = normalize_rate(mp_track->getEditRate());
-            track_info->duration = mp_source_clip->getDuration();
-            track_info->lead_filler_offset = lead_filler_offset;
+            track_info->edit_rate             = normalize_rate(mp_track->getEditRate());
+            track_info->duration              = mp_source_clip->getDuration();
+            track_info->lead_filler_offset    = lead_filler_offset;
+
+            // override external MCA labels if labels are also present in this files descriptor
+            MXFSoundTrackInfo *sound_track_info = dynamic_cast<MXFSoundTrackInfo*>(track_info);
+            if (sound_track_info && file_source_package->haveDescriptor()) {
+                FileDescriptor *file_desc = GetFileDescriptor(file_source_package->getDescriptor(), fsp_track_id);
+                if (file_desc) {
+                    if (!mMCALabelIndexedPackages.count(file_source_package)) {
+                        IndexMCALabels(file_source_package->getDescriptor());
+                        mMCALabelIndexedPackages.insert(file_source_package);
+                    }
+                    ProcessMCALabels(file_desc, sound_track_info);
+                }
+            }
         } else {
-            track_reader = CreateInternalTrackReader(partition, material_package, mp_track, mp_source_clip,
-                                                     is_picture, resolved_package);
+            track_reader = CreateInternalTrackReader(partition, mp_track, mp_source_clip,
+                                                     data_def, resolved_package);
+            if (!track_reader) {
+                log_warn("Skipping material package track %u\n", mp_track_id);
+                skipped_track_count++;
+                continue;
+            }
             track_reader->GetTrackInfo()->lead_filler_offset = lead_filler_offset;
-            BMX_ASSERT(track_reader);
         }
         mTrackReaders.push_back(track_reader);
 
@@ -896,53 +1096,195 @@ void MXFFileReader::ProcessMetadata(Partition *partition)
         if (!infile_mp_track)
             infile_mp_track = mp_track;
     }
+    if (mTrackReaders.empty()) {
+        if (skipped_track_count > 0)
+            log_warn("Skipped %u material package tracks whilst processing header metadata\n", skipped_track_count);
+        THROW_RESULT(MXF_RESULT_NO_ESSENCE);
+    }
 
     // order tracks by material track number / id
     stable_sort(mTrackReaders.begin(), mTrackReaders.end(), compare_track_reader);
 
 
     // extract start timecodes and physical source package name
-
-    GetStartTimecodes(preface, material_package, infile_mp_track);
+    GetStartTimecodes(preface, infile_mp_track);
 
 
     // get the body and index SIDs linked to (singular) internal essence file source package
-
     if (!mInternalTrackReaders.empty()) {
         ContentStorage *content_storage = preface->getContentStorage();
-        if (!content_storage->haveEssenceContainerData())
+        vector<EssenceContainerData*> ess_data;
+        if (content_storage->haveEssenceContainerData())
+            ess_data = content_storage->getEssenceContainerData();
+        if (ess_data.empty()) {
+            log_error("Missing EssenceContainerData set\n");
             THROW_RESULT(MXF_RESULT_NO_ESSENCE);
-        vector<EssenceContainerData*> ess_data = content_storage->getEssenceContainerData();
-        if (ess_data.empty())
-            THROW_RESULT(MXF_RESULT_NO_ESSENCE);
+        }
 
         // only support single essence container (not OP-1B with multiple internal essence file source packages)
-        if (ess_data.size() != 1)
+        if (ess_data.size() != 1) {
+            log_error("Multiple essence containers is not supported\n");
             THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
+        }
         EssenceContainerData *single_ess_data = ess_data[0];
 
         mxfUMID linked_package_uid = single_ess_data->getLinkedPackageUID();
         for (i = 0; i < mInternalTrackReaders.size(); i++) {
-            if (!mxf_equals_umid(&mInternalTrackReaders[i]->GetTrackInfo()->file_package_uid, &linked_package_uid))
+            if (!mxf_equals_umid(&mInternalTrackReaders[i]->GetTrackInfo()->file_package_uid, &linked_package_uid)) {
+                log_error("Essence container data LinkedPackageUID does not link to internal file source package\n");
                 THROW_RESULT(MXF_RESULT_NO_ESSENCE);
+            }
         }
 
         mBodySID = single_ess_data->getBodySID();
-        if (mBodySID == 0)
+        if (mBodySID == 0) {
+            log_error("BodySID is 0\n");
             THROW_RESULT(MXF_RESULT_NO_ESSENCE);
+        }
 
-        // require index table
         mIndexSID = 0;
         if (single_ess_data->haveIndexSID())
             mIndexSID = single_ess_data->getIndexSID();
         if (mIndexSID == 0)
-            THROW_RESULT(MXF_RESULT_NO_ESSENCE_INDEX);
+            log_warn("Essence container has no index table (IndexSID is 0)\n");
+    }
+
+    // disable unused external tracks, i.e. external tracks not contained in mExternalTrackReaders / mTrackReaders
+    for (i = 0; i < mExternalReaders.size(); i++) {
+        size_t j;
+        for (j = 0; j < mExternalReaders[i]->GetNumTrackReaders(); j++) {
+            size_t k;
+            for (k = 0; k < mExternalTrackReaders.size(); k++) {
+                if (mExternalTrackReaders[k] == mExternalReaders[i]->GetTrackReader(j))
+                    break;
+            }
+            if (k >= mExternalTrackReaders.size())
+                mExternalReaders[i]->GetTrackReader(j)->SetEnable(false);
+        }
+    }
+
+    // set the clip edit rate if required, i.e. when there are no internal essence tracks
+    BMX_ASSERT(mEditRate.numerator != 0 || mInternalTrackReaders.empty());
+    if (mEditRate.numerator == 0) {
+        // the lowest external edit rate is the clip edit rate
+        float lowest_edit_rate = 1000000.0;
+        size_t i;
+        for (i = 0; i < mTrackReaders.size(); i++) {
+            float track_edit_rate = mTrackReaders[i]->GetEditRate().numerator /
+                                        (float)mTrackReaders[i]->GetEditRate().denominator;
+            if (track_edit_rate < lowest_edit_rate) {
+                mEditRate = mTrackReaders[i]->GetEditRate();
+                lowest_edit_rate = track_edit_rate;
+            }
+        }
+        BMX_CHECK(mEditRate.numerator != 0);
+    }
+
+    // extract the external track sample sequences which are used to convert external positions / durations
+    for (i = 0; i < mExternalReaders.size(); i++) {
+        vector<uint32_t> sample_sequence;
+        if (!get_sample_sequence(mEditRate, mExternalReaders[i]->GetEditRate(), &sample_sequence)) {
+            mxfRational external_edit_rate = mExternalReaders[i]->GetEditRate();
+            log_error("Externally referenced file's edit rate %d/%d is incompatible with clip edit rate %d/%d\n",
+                      external_edit_rate.numerator, external_edit_rate.denominator,
+                      mEditRate.numerator, mEditRate.denominator);
+            THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
+        }
+
+        mExternalSampleSequences.push_back(sample_sequence);
+        mExternalSampleSequenceSizes.push_back(get_sequence_size(sample_sequence));
+    }
+
+    // determine the clip duration which is the minimum track duration or unknown (-1)
+    // Note that OP-1A and 1B require the tracks to have equal duration
+    mDuration = -2;
+    for (i = 0; i < mInternalTrackReaders.size(); i++) {
+        if (mInternalTrackReaders[i]->GetTrackInfo()->duration < 0) {
+            mDuration = -1;
+            break;
+        }
+        int64_t track_duration = convert_duration(mInternalTrackReaders[i]->GetTrackInfo()->edit_rate,
+                                                  mInternalTrackReaders[i]->GetTrackInfo()->duration,
+                                                  mEditRate,
+                                                  ROUND_AUTO);
+        if (mDuration == -2 || track_duration < mDuration)
+            mDuration = track_duration;
+    }
+    if (mDuration != -1) {
+        for (i = 0; i < mExternalReaders.size(); i++) {
+            if (mExternalReaders[i]->GetDuration() < 0) {
+                mDuration = -1;
+                break;
+            }
+            int64_t internal_duration = CONVERT_EXTERNAL_DUR(mExternalReaders[i]->GetDuration());
+            if (mDuration == -2 || internal_duration < mDuration)
+                mDuration = internal_duration;
+        }
+    }
+
+    // force external readers to have the clip's duration
+    if (mDuration >= 0) {
+        for (i = 0; i < mExternalReaders.size(); i++)
+            mExternalReaders[i]->ForceDuration(CONVERT_INTERNAL_POS(mDuration));
+    }
+
+    // the clip origin is the maximum track origin, i.e. maximum file or external file origin
+    mOrigin = mFileOrigin;
+    for (i = 0; i < mExternalReaders.size(); i++) {
+        int64_t external_origin = CONVERT_EXTERNAL_POS(mExternalReaders[i]->GetOrigin());
+        if (external_origin > mOrigin)
+            mOrigin = external_origin;
+    }
+
+    // extract text objects from static tracks in material package
+    for (i = 0; i < mp_tracks.size(); i++) {
+        StaticTrack *mp_track = dynamic_cast<StaticTrack*>(mp_tracks[i]);
+        if (!mp_track)
+            continue;
+
+        Sequence *dm_sequence = dynamic_cast<Sequence*>(mp_track->getSequence());
+        if (!dm_sequence)
+            continue;
+        mxfUL data_def_ul = dm_sequence->getDataDefinition();
+        MXFDataDefEnum data_def = mxf_get_ddef_enum(&data_def_ul);
+        if (data_def != MXF_DM_DDEF)
+            continue;
+
+        uint32_t mp_track_id = 0;
+        if (mp_track->haveTrackID())
+            mp_track_id = mp_track->getTrackID();
+        else
+            log_warn("Material package static DM Track does not have a TrackID property\n");
+
+        vector<StructuralComponent*> dm_components = dm_sequence->getStructuralComponents();
+        size_t j;
+        for (j = 0; j < dm_components.size(); j++) {
+            DMSegment *dm_segment = dynamic_cast<DMSegment*>(dm_components[j]);
+            if (!dm_segment)
+                continue;
+            TextBasedDMFramework *text_framework = dynamic_cast<TextBasedDMFramework*>(dm_segment->getDMFrameworkLight());
+            if (!text_framework)
+                continue;
+            TextBasedObject *text_object = dynamic_cast<TextBasedObject*>(text_framework->getTextBasedObject());
+            if (!text_object)
+                continue;
+            mInternalTextObjects.push_back(new MXFTextObject(this, text_object, mMaterialPackageUID,
+                                                             mp_track_id, (uint16_t)j));
+            mTextObjects.push_back(mInternalTextObjects.back());
+        }
+    }
+
+    // add text objects from external readers
+    for (i = 0; i < mExternalReaders.size(); i++) {
+        size_t k;
+        for (k = 0; k < mExternalReaders[i]->GetNumTextObjects(); k++)
+            mTextObjects.push_back(mExternalReaders[i]->GetTextObject(k));
     }
 }
 
-MXFTrackReader* MXFFileReader::CreateInternalTrackReader(Partition *partition, MaterialPackage *material_package,
+MXFTrackReader* MXFFileReader::CreateInternalTrackReader(Partition *partition,
                                                          Track *mp_track, SourceClip *mp_source_clip,
-                                                         bool is_picture, const ResolvedPackage *resolved_package)
+                                                         MXFDataDefEnum data_def, const ResolvedPackage *resolved_package)
 {
     SourcePackage *file_source_package = dynamic_cast<SourcePackage*>(resolved_package->package);
     BMX_CHECK(file_source_package);
@@ -951,23 +1293,25 @@ MXFTrackReader* MXFFileReader::CreateInternalTrackReader(Partition *partition, M
     BMX_CHECK(fsp_track);
 
 
-    // set file's edit rate
+    // set or check the clip edit rate
 
     Rational fsp_edit_rate = normalize_rate(fsp_track->getEditRate());
-    if (mSampleRate.numerator == 0) {
-        mSampleRate = fsp_edit_rate;
-    } else if (mSampleRate != fsp_edit_rate) {
+    if (mEditRate.numerator == 0) {
+        mEditRate = fsp_edit_rate;
+    } else if (mEditRate != fsp_edit_rate) {
         BMX_EXCEPTION(("FSP track edit rate %d/%d does not match existing edit rate %d/%d",
                        fsp_edit_rate.numerator, fsp_edit_rate.denominator,
-                       mSampleRate.numerator, mSampleRate.denominator));
+                       mEditRate.numerator, mEditRate.denominator));
     }
 
 
     // get track origin (pre-charge)
 
     int64_t origin = fsp_track->getOrigin();
-    BMX_CHECK_M(origin >= 0,
-               ("Negative track origin %"PRId64" in top-level file Source Package not supported", origin));
+    if (origin < 0) {
+        log_error("Negative track origin %" PRId64 " in top-level file Source Package not supported\n", origin);
+        THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
+    }
 
     // Avid start position > 0 is equivalent to origin in the file source package
     if (mp_source_clip->getStartPosition() > 0) {
@@ -977,66 +1321,59 @@ MXFTrackReader* MXFFileReader::CreateInternalTrackReader(Partition *partition, M
                                    ROUND_AUTO);
     }
 
-    BMX_CHECK_M(mInternalTrackReaders.empty() || mOrigin == origin,
-               ("Different track origins (%"PRId64" != %"PRId64")", mOrigin, origin));
-    mOrigin = origin;
-
-
-    // get the file descriptor
-
-    FileDescriptor *file_desc = 0;
-    MultipleDescriptor *mult_desc = dynamic_cast<MultipleDescriptor*>(file_source_package->getDescriptor());
-    if (mult_desc) {
-        BMX_CHECK(fsp_track->haveTrackID());
-        uint32_t fsp_track_id = fsp_track->getTrackID();
-
-        vector<GenericDescriptor*> child_descs = mult_desc->getSubDescriptorUIDs();
-        size_t i;
-        for (i = 0; i < child_descs.size(); i++) {
-            FileDescriptor *child_file_desc = dynamic_cast<FileDescriptor*>(child_descs[i]);
-            if (!child_file_desc || !child_file_desc->haveLinkedTrackID())
-                continue;
-            if (child_file_desc->getLinkedTrackID() == fsp_track_id) {
-                file_desc = child_file_desc;
-                break;
-            }
-        }
-    } else {
-        file_desc = dynamic_cast<FileDescriptor*>(file_source_package->getDescriptor());
+    if (!mInternalTrackReaders.empty() && origin != mFileOrigin) {
+        log_error("Tracks with different track origins, %" PRId64 " != %" PRId64 ", is not supported\n",
+                  origin, mFileOrigin);
+        THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
     }
-    BMX_CHECK(file_desc);
+    mFileOrigin = origin;
 
-    Rational desc_sample_rate = normalize_rate(file_desc->getSampleRate());
-    if (desc_sample_rate != fsp_edit_rate) {
-        log_info("FSP track edit rate %d/%d does not equal descriptor sample rate %d/%d\n",
-                 fsp_edit_rate.numerator, fsp_edit_rate.denominator,
-                 desc_sample_rate.numerator, desc_sample_rate.denominator);
+
+    // index MCA labels in the package
+
+    if (!mMCALabelIndexedPackages.count(file_source_package)) {
+        IndexMCALabels(file_source_package->getDescriptor());
+        mMCALabelIndexedPackages.insert(file_source_package);
+    }
+
+
+    // get the file descriptor associated with the track
+
+    FileDescriptor *file_desc = GetFileDescriptor(file_source_package->getDescriptor(), fsp_track->getTrackID());
+    if (!file_desc) {
+        log_warn("Failed to find file descriptor for source package track %u\n", fsp_track->getTrackID());
+        return 0;
     }
 
 
     // fill in track info
 
-    MXFTrackInfo *track_info = 0;
+    auto_ptr<MXFTrackInfo> track_info;
     MXFPictureTrackInfo *picture_track_info = 0;
     MXFSoundTrackInfo *sound_track_info = 0;
-    if (is_picture) {
+    MXFDataTrackInfo *data_track_info = 0;
+    if (data_def == MXF_PICTURE_DDEF) {
         picture_track_info = new MXFPictureTrackInfo();
-        track_info = picture_track_info;
-    } else {
+        track_info.reset(picture_track_info);
+    } else if (data_def == MXF_SOUND_DDEF) {
         sound_track_info = new MXFSoundTrackInfo();
-        track_info = sound_track_info;
+        track_info.reset(sound_track_info);
+    } else {
+        BMX_ASSERT(data_def == MXF_DATA_DDEF);
+        data_track_info = new MXFDataTrackInfo();
+        track_info.reset(data_track_info);
     }
 
-    track_info->material_package_uid = material_package->getPackageUID();
+    track_info->material_package_uid  = mMaterialPackage->getPackageUID();
     if (mp_track->haveTrackID())
         track_info->material_track_id = mp_track->getTrackID();
     track_info->material_track_number = mp_track->getTrackNumber();
-    track_info->file_package_uid = file_source_package->getPackageUID();
-    track_info->edit_rate = normalize_rate(mp_track->getEditRate());
-    track_info->duration = mp_source_clip->getDuration();
+    track_info->file_package_uid      = file_source_package->getPackageUID();
+    track_info->edit_rate             = normalize_rate(mp_track->getEditRate());
+    track_info->duration              = mp_source_clip->getDuration();
     if (fsp_track->haveTrackID())
-        track_info->file_track_id = fsp_track->getTrackID();
-    track_info->file_track_number = fsp_track->getTrackNumber();
+        track_info->file_track_id     = fsp_track->getTrackID();
+    track_info->file_track_number     = fsp_track->getTrackNumber();
     BMX_CHECK(track_info->file_track_number != 0);
 
     if (fsp_edit_rate != track_info->edit_rate) {
@@ -1047,21 +1384,38 @@ MXFTrackReader* MXFFileReader::CreateInternalTrackReader(Partition *partition, M
 
     // use the essence container label in the partition to workaround issue with Avid files where
     // the essence container label in the descriptor is a generic KLV label
+    // Also workaround an issue with Blackmagic Design, DaVinci Resolve, 10.0b_lite,
+    // Avid compatible MXF OP-Atom files where the essence container label in the partition pack
+    // is set to the picture coding label
     if (mxf_is_op_atom(partition->getOperationalPattern())) {
         vector<mxfUL> ec_labels = partition->getEssenceContainers();
-        if (ec_labels.size() == 1)
+        if (ec_labels.size() == 1) {
             track_info->essence_container_label = ec_labels[0];
+            GenericPictureEssenceDescriptor *picture_desc = dynamic_cast<GenericPictureEssenceDescriptor*>(file_desc);
+            if (picture_desc && picture_desc->havePictureEssenceCoding()) {
+                mxfUL pc_label = picture_desc->getPictureEssenceCoding();
+                if (mxf_equals_ul(&track_info->essence_container_label, &pc_label)) {
+                    log_error("Essence container label in the partition pack is set to the picture coding label\n");
+                    // set to null so that this alternative essence container label is ignored
+                    // in the MXFDescriptorHelper sub-classes
+                    track_info->essence_container_label = g_Null_UL;
+                }
+            }
+        }
     }
 
-    if (is_picture)
+    if (data_def == MXF_PICTURE_DDEF)
         ProcessPictureDescriptor(file_desc, picture_track_info);
-    else
+    else if (data_def == MXF_SOUND_DDEF)
         ProcessSoundDescriptor(file_desc, sound_track_info);
+    else
+        ProcessDataDescriptor(file_desc, data_track_info);
 
 
-    MXFFileTrackReader *track_reader = new MXFFileTrackReader(this, mInternalTrackReaders.size(), track_info,
+    MXFFileTrackReader *track_reader = new MXFFileTrackReader(this, mInternalTrackReaders.size(), track_info.get(),
                                                               file_desc, file_source_package);
     mInternalTrackReaders.push_back(track_reader);
+    track_info.release();
     mInternalTrackReaderNumberMap[mInternalTrackReaders.back()->GetTrackInfo()->file_track_number] = track_reader;
 
     return mInternalTrackReaders.back();
@@ -1081,7 +1435,7 @@ MXFTrackReader* MXFFileReader::GetExternalTrackReader(SourceClip *mp_source_clip
         return 0;
     }
 
-    // require file with internal essence
+    // require external file to have internal essence
     const ResolvedPackage *resolved_package = 0;
     size_t i;
     for (i = 0; i < resolved_packages.size(); i++) {
@@ -1104,10 +1458,12 @@ MXFTrackReader* MXFFileReader::GetExternalTrackReader(SourceClip *mp_source_clip
         return 0;
     }
 
-    // don't support tracks referenced by multiple material tracks
+    // don't support external tracks referenced by multiple material tracks
     for (i = 0; i < mTrackReaders.size(); i++) {
-        if (mTrackReaders[i] == external_track_reader)
+        if (mTrackReaders[i] == external_track_reader) {
+            log_error("Tracks referenced by multiple material tracks is not supported\n");
             THROW_RESULT(MXF_RESULT_NOT_SUPPORTED);
+        }
     }
 
     // add external reader if not already present
@@ -1115,14 +1471,16 @@ MXFTrackReader* MXFFileReader::GetExternalTrackReader(SourceClip *mp_source_clip
         if (mExternalReaders[i] == resolved_package->file_reader)
             break;
     }
-    if (i >= mExternalReaders.size())
+    if (i >= mExternalReaders.size()) {
+        resolved_package->file_reader->SetFileIndex(mFileIndex, false);
         mExternalReaders.push_back(resolved_package->file_reader);
+    }
 
     mExternalTrackReaders.push_back(external_track_reader);
     return external_track_reader;
 }
 
-void MXFFileReader::GetStartTimecodes(Preface *preface, MaterialPackage *material_package, Track *infile_mp_track)
+void MXFFileReader::GetStartTimecodes(Preface *preface, Track *infile_mp_track)
 {
     Timecode start_timecode;
     GenericPackage *ref_package;
@@ -1132,7 +1490,7 @@ void MXFFileReader::GetStartTimecodes(Preface *preface, MaterialPackage *materia
     // try get start timecodes from the material package, file source package and physical source package
     // also get the physical source package name
 
-    if (GetStartTimecode(material_package, 0, 0, &start_timecode))
+    if (GetStartTimecode(mMaterialPackage, 0, 0, &start_timecode))
         mMaterialStartTimecode = new Timecode(start_timecode);
 
     if (infile_mp_track) {
@@ -1155,11 +1513,9 @@ void MXFFileReader::GetStartTimecodes(Preface *preface, MaterialPackage *materia
     }
 }
 
-bool MXFFileReader::GetStartTimecode(GenericPackage *package, Track *track, int64_t offset, Timecode *timecode)
+bool MXFFileReader::GetStartTimecode(GenericPackage *package, Track *ref_track, int64_t offset, Timecode *timecode)
 {
-    BMX_ASSERT(offset == 0 || track);
-
-    // find the timecode component in this package
+    // find the first track with a timecode component
     TimecodeComponent *tc_component = 0;
     vector<GenericTrack*> tracks = package->getTracks();
     size_t i;
@@ -1169,8 +1525,8 @@ bool MXFFileReader::GetStartTimecode(GenericPackage *package, Track *track, int6
             continue;
 
         StructuralComponent *track_sequence = track->getSequence();
-        mxfUL data_def = track_sequence->getDataDefinition();
-        if (!mxf_is_timecode(&data_def))
+        mxfUL data_def_ul = track_sequence->getDataDefinition();
+        if (!mxf_is_timecode(&data_def_ul))
             continue;
 
         Sequence *sequence = dynamic_cast<Sequence*>(track_sequence);
@@ -1191,9 +1547,11 @@ bool MXFFileReader::GetStartTimecode(GenericPackage *package, Track *track, int6
         return false;
 
 
+    // the timecode offset is 0 or it is the offset in the referenced track converted to an offset in the timecode track
+    BMX_ASSERT(offset == 0 || ref_track);
     int64_t tc_offset = offset;
-    if (track)
-        tc_offset = convert_tc_offset(normalize_rate(track->getEditRate()), offset,
+    if (ref_track)
+        tc_offset = convert_tc_offset(normalize_rate(ref_track->getEditRate()), offset,
                                       tc_component->getRoundedTimecodeBase());
 
     timecode->Init(tc_component->getRoundedTimecodeBase(),
@@ -1256,14 +1614,20 @@ bool MXFFileReader::GetReferencedPackage(Preface *preface, Track *track, int64_t
         }
     }
     if (!type_match) {
+        if (ref_track == track && offset_in == ref_offset) {
+            // avoid infinite recursion on malformed files
+            log_warn("Track %d references itself\n", track->getTrackID());
+            return false;
+        }
         return GetReferencedPackage(preface, ref_track, ref_offset, package_type,
                                     ref_package_out, ref_track_out, ref_offset_out);
     }
 
 
     *ref_package_out = ref_package;
-    *ref_track_out = ref_track;
-    *ref_offset_out = ref_offset;
+    *ref_track_out   = ref_track;
+    *ref_offset_out  = ref_offset;
+
     return true;
 }
 
@@ -1324,9 +1688,9 @@ void MXFFileReader::ProcessPictureDescriptor(FileDescriptor *file_descriptor, MX
         picture_track_info->display_height = picture_track_info->stored_height;
 
     if (picture_descriptor->haveDisplayXOffset())
-        picture_track_info->display_x_offset = picture_descriptor->getDisplayXOffset();
+        BMX_OPT_PROP_SET(picture_track_info->display_x_offset, picture_descriptor->getDisplayXOffset());
     if (picture_descriptor->haveDisplayYOffset())
-        picture_track_info->display_y_offset = frame_height_factor * picture_descriptor->getDisplayYOffset();
+        BMX_OPT_PROP_SET(picture_track_info->display_y_offset, frame_height_factor * picture_descriptor->getDisplayYOffset());
 
     if (picture_descriptor->haveActiveFormatDescriptor()) {
         decode_afd(picture_descriptor->getActiveFormatDescriptor(), mMXFVersion, &picture_track_info->afd,
@@ -1377,24 +1741,20 @@ void MXFFileReader::ProcessSoundDescriptor(FileDescriptor *file_descriptor, MXFS
     if (sound_descriptor->haveQuantizationBits())
         sound_track_info->bits_per_sample = sound_descriptor->getQuantizationBits();
 
-    if (sound_descriptor->haveLocked()) {
-        sound_track_info->locked = sound_descriptor->getLocked();
-        sound_track_info->locked_set = true;
-    }
-    if (sound_descriptor->haveAudioRefLevel()) {
-        sound_track_info->audio_ref_level = sound_descriptor->getAudioRefLevel();
-        sound_track_info->audio_ref_level_set = true;
-    }
-    if (sound_descriptor->haveDialNorm()) {
-        sound_track_info->dial_norm = sound_descriptor->getDialNorm();
-        sound_track_info->dial_norm_set = true;
-    }
+    if (sound_descriptor->haveLocked())
+        BMX_OPT_PROP_SET(sound_track_info->locked, sound_descriptor->getLocked());
+    if (sound_descriptor->haveAudioRefLevel())
+        BMX_OPT_PROP_SET(sound_track_info->audio_ref_level, sound_descriptor->getAudioRefLevel());
+    if (sound_descriptor->haveDialNorm())
+        BMX_OPT_PROP_SET(sound_track_info->dial_norm, sound_descriptor->getDialNorm());
 
     WaveAudioDescriptor *wave_descriptor = dynamic_cast<WaveAudioDescriptor*>(file_descriptor);
     if (wave_descriptor) {
         sound_track_info->block_align = wave_descriptor->getBlockAlign();
         if (wave_descriptor->haveSequenceOffset())
             sound_track_info->sequence_offset = wave_descriptor->getSequenceOffset();
+        if (wave_descriptor->haveChannelAssignment())
+            sound_track_info->channel_assignment = wave_descriptor->getChannelAssignment();
     } else {
         if (sound_track_info->channel_count > 0) {
             sound_track_info->block_align = sound_track_info->channel_count *
@@ -1404,6 +1764,91 @@ void MXFFileReader::ProcessSoundDescriptor(FileDescriptor *file_descriptor, MXFS
             sound_track_info->block_align = (sound_track_info->bits_per_sample + 7) / 8;
         }
     }
+
+    ProcessMCALabels(file_descriptor, sound_track_info);
+}
+
+void MXFFileReader::ProcessDataDescriptor(FileDescriptor *file_descriptor, MXFDataTrackInfo *data_track_info)
+{
+    ProcessDescriptor(file_descriptor, data_track_info);
+}
+
+void MXFFileReader::IndexMCALabels(GenericDescriptor *descriptor)
+{
+    if (descriptor->haveSubDescriptors()) {
+        vector<SubDescriptor*> sub_descs = descriptor->getSubDescriptors();
+        size_t i;
+        for (i = 0; i < sub_descs.size(); i++) {
+            MCALabelSubDescriptor *label = dynamic_cast<MCALabelSubDescriptor*>(sub_descs[i]);
+            if (label)
+                mMCALabelIndex->RegisterLabel(label);
+        }
+    }
+
+    MultipleDescriptor *mult_desc = dynamic_cast<MultipleDescriptor*>(descriptor);
+    if (mult_desc) {
+        vector<GenericDescriptor*> child_descs = mult_desc->getSubDescriptorUIDs();
+        size_t i;
+        for (i = 0; i < child_descs.size(); i++)
+            IndexMCALabels(child_descs[i]);
+    }
+}
+
+void MXFFileReader::ProcessMCALabels(FileDescriptor *file_desc, MXFSoundTrackInfo *sound_track_info)
+{
+    vector<AudioChannelLabelSubDescriptor*> mca_labels;
+    if (file_desc->haveSubDescriptors()) {
+        vector<SubDescriptor*> sub_descs = file_desc->getSubDescriptors();
+        size_t i;
+        for (i = 0; i < sub_descs.size(); i++) {
+            AudioChannelLabelSubDescriptor *c_label = dynamic_cast<AudioChannelLabelSubDescriptor*>(sub_descs[i]);
+            if (c_label) {
+                if (sound_track_info->channel_count == 0) {
+                    BMX_EXCEPTION(("MCA channel label in track containing 0 channels"));
+                } else if (c_label->haveMCAChannelID()) {
+                    if (c_label->getMCAChannelID() == 0)
+                        BMX_EXCEPTION(("MCA channel label channel id value 0 is invalid; channel id starts counting from 1"));
+                    if (c_label->getMCAChannelID() > sound_track_info->channel_count) {
+                        BMX_EXCEPTION(("MCA channel label channel id %u exceeds channel count %u",
+                                       c_label->getMCAChannelID(), sound_track_info->channel_count));
+                    }
+                } else {
+                    if (sound_track_info->channel_count > 1) {
+                        BMX_EXCEPTION(("MCA channel label is missing the channel id property in a track containing %u channels",
+                                       sound_track_info->channel_count));
+                    }
+                }
+                mMCALabelIndex->CheckReferences(c_label);
+                mca_labels.push_back(c_label);
+            }
+        }
+    }
+
+    if (!mca_labels.empty())
+        sound_track_info->mca_labels = mca_labels;
+}
+
+FileDescriptor* MXFFileReader::GetFileDescriptor(GenericDescriptor *descriptor, uint32_t fsp_track_id)
+{
+    FileDescriptor *file_desc     = dynamic_cast<FileDescriptor*>(descriptor);
+    MultipleDescriptor *mult_desc = dynamic_cast<MultipleDescriptor*>(descriptor);
+    if (mult_desc) {
+        file_desc = 0; // need to find it in the child descriptors
+
+        vector<GenericDescriptor*> child_descs = mult_desc->getSubDescriptorUIDs();
+        size_t i;
+        for (i = 0; i < child_descs.size(); i++) {
+            FileDescriptor *child_file_desc = dynamic_cast<FileDescriptor*>(child_descs[i]);
+            if (!child_file_desc || !child_file_desc->haveLinkedTrackID())
+                continue;
+            if (child_file_desc->getLinkedTrackID() == fsp_track_id) {
+                file_desc = child_file_desc;
+                break;
+            }
+        }
+    }
+
+    return file_desc;
 }
 
 MXFTrackReader* MXFFileReader::GetInternalTrackReader(size_t index) const
@@ -1447,6 +1892,7 @@ bool MXFFileReader::GetInternalIndexEntry(MXFIndexEntryExt *entry, int64_t posit
 
 int16_t MXFFileReader::GetInternalPrecharge(int64_t position, bool limit_to_available) const
 {
+    CHECK_SUPPORT_PC_RO_INFO;
     BMX_ASSERT(mEssenceReader);
 
     if (!HaveInterFrameEncodingTrack())
@@ -1484,6 +1930,7 @@ int16_t MXFFileReader::GetInternalPrecharge(int64_t position, bool limit_to_avai
 
 int16_t MXFFileReader::GetInternalRollout(int64_t position, bool limit_to_available) const
 {
+    CHECK_SUPPORT_PC_RO_INFO;
     BMX_ASSERT(mEssenceReader);
 
     if (!HaveInterFrameEncodingTrack())
@@ -1514,20 +1961,21 @@ int16_t MXFFileReader::GetInternalRollout(int64_t position, bool limit_to_availa
 
 void MXFFileReader::GetInternalAvailableReadLimits(int64_t *start_position, int64_t *duration) const
 {
+    CHECK_SUPPORT_PC_RO_INFO;
+
     int16_t precharge = GetInternalPrecharge(0, true);
-    int16_t rollout = GetInternalRollout(mDuration - 1, true);
+    int16_t rollout   = GetInternalRollout(mDuration - 1, true);
+
     *start_position = 0 + precharge;
-    *duration = - precharge + mDuration + rollout;
+    *duration       = - precharge + mDuration + rollout;
 }
 
 bool MXFFileReader::InternalIsEnabled() const
 {
     size_t i;
     for (i = 0; i < mInternalTrackReaders.size(); i++) {
-        if (mInternalTrackReaders[i]->IsEnabled()) {
-            BMX_ASSERT(mEssenceReader);
+        if (mInternalTrackReaders[i]->IsEnabled())
             return true;
-        }
     }
 
     return false;
@@ -1539,10 +1987,18 @@ bool MXFFileReader::HaveInterFrameEncodingTrack() const
     for (i = 0; i < mInternalTrackReaders.size(); i++) {
         if (mInternalTrackReaders[i]->IsEnabled()) {
             EssenceType essence_type = mInternalTrackReaders[i]->GetTrackInfo()->essence_type;
-            size_t j;
-            for (j = 0; j < ARRAY_SIZE(INTER_FRAME_ENCODING_ESSENCE_TYPES); j++) {
-                if (essence_type == INTER_FRAME_ENCODING_ESSENCE_TYPES[j])
-                    return true;
+            if (essence_type == MPEG2LG_422P_HL_1080I ||
+                essence_type == MPEG2LG_422P_HL_1080P ||
+                essence_type == MPEG2LG_422P_HL_720P ||
+                essence_type == MPEG2LG_MP_HL_1920_1080I ||
+                essence_type == MPEG2LG_MP_HL_1920_1080P ||
+                essence_type == MPEG2LG_MP_HL_1440_1080I ||
+                essence_type == MPEG2LG_MP_HL_1440_1080P ||
+                essence_type == MPEG2LG_MP_HL_720P ||
+                essence_type == MPEG2LG_MP_H14_1080I ||
+                essence_type == MPEG2LG_MP_H14_1080P)
+            {
+                return true;
             }
         }
     }
@@ -1550,89 +2006,176 @@ bool MXFFileReader::HaveInterFrameEncodingTrack() const
     return false;
 }
 
-void MXFFileReader::ExtractInfoFromFirstFrame()
+void MXFFileReader::CheckRequireFrameInfo()
 {
-    bool require_first_frame = false;
     size_t i;
     for (i = 0; i < mInternalTrackReaders.size(); i++) {
-        MXFTrackInfo *track_info = mInternalTrackReaders[i]->GetTrackInfo();
-        MXFPictureTrackInfo *picture_info = dynamic_cast<MXFPictureTrackInfo*>(track_info);
-
-        if (track_info->essence_type == D10_30 ||
-            track_info->essence_type == D10_40 ||
-            track_info->essence_type == D10_50)
-        {
-            if (mIsClipWrapped) {
-                MXFIndexEntryExt index_entry;
-                if (mEssenceReader->GetIndexEntry(&index_entry, 0)) {
-                    BMX_CHECK(index_entry.edit_unit_size <= UINT32_MAX);
-                    picture_info->d10_frame_size = (uint32_t)index_entry.edit_unit_size;
-                }
-            } else {
-                require_first_frame = true;
+        if (mInternalTrackReaders[i]->IsEnabled()) {
+            MXFTrackInfo *track_info = mInternalTrackReaders[i]->GetTrackInfo();
+            if (track_info->essence_type == D10_AES3_PCM ||
+                track_info->essence_type == AVCI200_1080I ||
+                track_info->essence_type == AVCI200_1080P ||
+                track_info->essence_type == AVCI200_720P ||
+                track_info->essence_type == AVCI100_1080I ||
+                track_info->essence_type == AVCI100_1080P ||
+                track_info->essence_type == AVCI100_720P ||
+                track_info->essence_type == AVCI50_1080I ||
+                track_info->essence_type == AVCI50_1080P ||
+                track_info->essence_type == AVCI50_720P)
+            {
+                if (mRequireFrameInfoCount < 1)
+                    mRequireFrameInfoCount = 1;
             }
-        }
-        else if (track_info->essence_type == D10_AES3_PCM)
-        {
-            require_first_frame = true;
-        }
-        else if (track_info->essence_type == AVCI100_1080I ||
-                 track_info->essence_type == AVCI100_1080P ||
-                 track_info->essence_type == AVCI100_720P ||
-                 track_info->essence_type == AVCI50_1080I ||
-                 track_info->essence_type == AVCI50_1080P ||
-                 track_info->essence_type == AVCI50_720P)
-        {
-            require_first_frame = true;
+            else if (track_info->essence_type == VBI_DATA ||
+                     track_info->essence_type == ANC_DATA)
+            {
+                if (mRequireFrameInfoCount < mST436ManifestCount)
+                    mRequireFrameInfoCount = mST436ManifestCount;
+            }
         }
     }
-    if (!require_first_frame)
-        return;
+}
 
-    mEssenceReader->Read(1);
+void MXFFileReader::ExtractFrameInfo()
+{
+    int64_t ess_reader_pos = mEssenceReader->GetPosition();
 
-    AVCIEssenceParser avci_parser;
-    for (i = 0; i < mInternalTrackReaders.size(); i++) {
-        Frame *frame = mInternalTrackReaders[i]->GetFrameBuffer()->GetLastFrame(true);
-        if (!frame || frame->IsEmpty()) {
-            delete frame;
-            continue;
-        }
+    SetTemporaryFrameBuffer(true);
+    if (!mFile->isSeekable())
+      mEssenceReader->SetBufferFrames(true);
+    mEssenceReader->Seek(0);
 
-        MXFTrackInfo *track_info = mInternalTrackReaders[i]->GetTrackInfo();
-        MXFPictureTrackInfo *picture_info = dynamic_cast<MXFPictureTrackInfo*>(track_info);
-        MXFSoundTrackInfo *sound_info = dynamic_cast<MXFSoundTrackInfo*>(track_info);
-
-        if (track_info->essence_type == D10_30 ||
-            track_info->essence_type == D10_40 ||
-            track_info->essence_type == D10_50)
-        {
-            if (!mIsClipWrapped)
-                picture_info->d10_frame_size = frame->GetSize();
-        }
-        else if (track_info->essence_type == D10_AES3_PCM)
-        {
-            if (frame->GetSize() >= 4)
-                sound_info->d10_aes3_valid_flags = frame->GetBytes()[3];
-        }
-        else if (track_info->essence_type == AVCI100_1080I ||
-                 track_info->essence_type == AVCI100_1080P ||
-                 track_info->essence_type == AVCI100_720P ||
-                 track_info->essence_type == AVCI50_1080I ||
-                 track_info->essence_type == AVCI50_1080P ||
-                 track_info->essence_type == AVCI50_720P)
-        {
-            avci_parser.ParseFrameInfo(frame->GetBytes(), frame->GetSize());
-            picture_info->have_avci_header = avci_parser.HaveSequenceParameterSet();
-            if (picture_info->have_avci_header) {
-                dynamic_cast<MXFFileTrackReader*>(mInternalTrackReaders[i])->SetAVCIHeader(
-                    frame->GetBytes(), frame->GetSize());
-            } else {
-                log_warn("First frame in AVC-Intra track does not have sequence and picture parameter sets\n");
+    bool have_first = false;
+    Frame *frame = 0;
+    try
+    {
+        size_t i;
+        for (i = 0; i < mInternalTrackReaders.size(); i++) {
+            MXFDataTrackInfo *data_info = dynamic_cast<MXFDataTrackInfo*>(mInternalTrackReaders[i]->GetTrackInfo());
+            if (data_info) {
+                data_info->vbi_manifest.clear();
+                data_info->anc_manifest.clear();
             }
         }
 
+        uint32_t f;
+        for (f = 0; f < mRequireFrameInfoCount; f++) {
+            if (mEssenceReader->Read(1) != 1)
+                throw true;
+
+            AVCEssenceParser avc_parser;
+            for (i = 0; i < mInternalTrackReaders.size(); i++) {
+                Frame *frame = mInternalTrackReaders[i]->GetFrameBuffer()->GetLastFrame(true);
+                if (!frame || frame->IsEmpty()) {
+                    delete frame;
+                    frame = 0;
+                    continue;
+                }
+
+                MXFTrackInfo *track_info = mInternalTrackReaders[i]->GetTrackInfo();
+                MXFPictureTrackInfo *picture_info = dynamic_cast<MXFPictureTrackInfo*>(track_info);
+                MXFSoundTrackInfo *sound_info = dynamic_cast<MXFSoundTrackInfo*>(track_info);
+                MXFDataTrackInfo *data_info = dynamic_cast<MXFDataTrackInfo*>(track_info);
+
+                if (f == 0 && track_info->essence_type == D10_AES3_PCM)
+                {
+                    if (frame->GetSize() >= 4)
+                        sound_info->d10_aes3_valid_flags = frame->GetBytes()[3];
+                }
+                else if (f == 0 &&
+                            (track_info->essence_type == AVCI200_1080I ||
+                             track_info->essence_type == AVCI200_1080P ||
+                             track_info->essence_type == AVCI200_720P ||
+                             track_info->essence_type == AVCI100_1080I ||
+                             track_info->essence_type == AVCI100_1080P ||
+                             track_info->essence_type == AVCI100_720P ||
+                             track_info->essence_type == AVCI50_1080I ||
+                             track_info->essence_type == AVCI50_1080P ||
+                             track_info->essence_type == AVCI50_720P))
+                {
+                    picture_info->have_avci_header = avc_parser.CheckFrameHasAVCIHeader(frame->GetBytes(), frame->GetSize());
+                    if (picture_info->have_avci_header) {
+                        dynamic_cast<MXFFileTrackReader*>(mInternalTrackReaders[i])->SetAVCIHeader(
+                            frame->GetBytes(), frame->GetSize());
+                    } else {
+                        log_warn("First frame in AVC-Intra track does not have sequence and picture parameter sets\n");
+                    }
+                }
+                else if (track_info->essence_type == VBI_DATA ||
+                         track_info->essence_type == ANC_DATA)
+                {
+                    ST436Element element(track_info->essence_type == VBI_DATA);
+                    element.Parse(frame->GetBytes(), frame->GetSize());
+
+                    if (track_info->essence_type == VBI_DATA) {
+                        size_t i;
+                        for (i = 0; i < element.lines.size(); i++) {
+                            VBIManifestElement manifest_element;
+                            manifest_element.Parse(&element.lines[i]);
+                            data_info->AppendUniqueVBIElement(manifest_element);
+                        }
+                    } else {
+                        size_t i;
+                        for (i = 0; i < element.lines.size(); i++) {
+                            ANCManifestElement manifest_element;
+                            manifest_element.Parse(&element.lines[i]);
+                            data_info->AppendUniqueANCElement(manifest_element);
+                        }
+                    }
+                }
+
+                delete frame;
+                frame = 0;
+                have_first = true;
+            }
+        }
+
+        mRequireFrameInfoCount = 0;
+    }
+    catch (const bool &ex)
+    {
+        if (ex) {
+            log_warn("Reached the end of the essence data whilst extracting information\n");
+            if (have_first) // good enough to continue
+                mRequireFrameInfoCount = 0;
+        }
         delete frame;
+    }
+    catch (...)
+    {
+        delete frame;
+    }
+
+    SetTemporaryFrameBuffer(false);
+    if (!mFile->isSeekable())
+      mEssenceReader->SetBufferFrames(false);
+    mEssenceReader->Seek(ess_reader_pos);
+}
+
+void MXFFileReader::StartRead()
+{
+    size_t i;
+    for (i = 0; i < mTrackReaders.size(); i++) {
+        if (mTrackReaders[i]->IsEnabled())
+            mTrackReaders[i]->GetMXFFrameBuffer()->StartRead();
+    }
+}
+
+void MXFFileReader::CompleteRead()
+{
+    size_t i;
+    for (i = 0; i < mTrackReaders.size(); i++) {
+        if (mTrackReaders[i]->IsEnabled())
+            mTrackReaders[i]->GetMXFFrameBuffer()->CompleteRead();
+    }
+}
+
+void MXFFileReader::AbortRead()
+{
+    size_t i;
+    for (i = 0; i < mTrackReaders.size(); i++) {
+        if (mTrackReaders[i]->IsEnabled())
+            mTrackReaders[i]->GetMXFFrameBuffer()->AbortRead();
     }
 }
 

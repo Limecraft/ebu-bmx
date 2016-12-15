@@ -39,7 +39,9 @@
 
 #include <bmx/as11/AS11Info.h>
 #include <bmx/as11/AS11DMS.h>
+#include <bmx/as11/AS11Labels.h>
 #include <bmx/as11/UKDPPDMS.h>
+#include <bmx/Utils.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -49,10 +51,19 @@ using namespace mxfpp;
 
 
 
-void AS11Info::RegisterExtensions(DataModel *data_model)
+void AS11Info::RegisterExtensions(HeaderMetadata *header_metadata)
 {
-    AS11DMS::RegisterExtensions(data_model);
-    UKDPPDMS::RegisterExtensions(data_model);
+    AS11DMS::RegisterExtensions(header_metadata);
+    UKDPPDMS::RegisterExtensions(header_metadata);
+
+    DataModel *data_model = header_metadata->getDataModel();
+    data_model->registerItemDef("SpecificationIdentifiers",
+                                &MXF_SET_K(Preface),
+                                &MXF_ITEM_K(Preface, SpecificationIdentifiers),
+                                0x0000,
+                                MXF_ULBATCH_TYPE, // AUIDArray
+                                false);
+    data_model->finalise();
 }
 
 AS11Info::AS11Info()
@@ -68,21 +79,21 @@ bool AS11Info::Read(HeaderMetadata *header_metadata)
 {
     Reset();
 
-    MaterialPackage *mp = header_metadata->getPreface()->findMaterialPackage();
+    Preface *preface = header_metadata->getPreface();
+    if (preface->haveItem(&MXF_ITEM_K(Preface, SpecificationIdentifiers)))
+        spec_identifiers = preface->getULArrayItem(&MXF_ITEM_K(Preface, SpecificationIdentifiers));
+
+    MaterialPackage *mp = preface->findMaterialPackage();
     if (!mp) {
         log_warn("No material package found\n");
         return false;
     }
     vector<GenericTrack*> tracks = mp->getTracks();
 
-    AS11CoreFramework::RegisterObjectFactory(header_metadata);
-    UKDPPFramework::RegisterObjectFactory(header_metadata);
-    AS11SegmentationFramework::RegisterObjectFactory(header_metadata);
-
     GetStaticFrameworks(tracks);
     GetSegmentation(tracks);
 
-    return core != 0 || ukdpp != 0 || !segmentation.empty();
+    return core != 0 || ukdpp != 0 || !segmentation.empty() || !spec_identifiers.empty();
 }
 
 void AS11Info::Reset()
@@ -91,6 +102,7 @@ void AS11Info::Reset()
     ukdpp = 0;
     segmentation.clear();
     segmentation_rate = ZERO_RATIONAL;
+    spec_identifiers.clear();
 }
 
 void AS11Info::GetStaticFrameworks(vector<GenericTrack*> &tracks)
@@ -172,7 +184,7 @@ void AS11Info::GetSegmentation(vector<GenericTrack*> &tracks)
             continue;
         }
 
-        segmentation_rate = tt->getEditRate();
+        segmentation_rate = normalize_rate(tt->getEditRate());
         break;
     }
 }

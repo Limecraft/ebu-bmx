@@ -29,12 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AVCI_RAW_ESSENCE_READER_H__
-#define __BMX_AVCI_RAW_ESSENCE_READER_H__
+#ifndef BMX_AVCI_RAW_ESSENCE_READER_H_
+#define BMX_AVCI_RAW_ESSENCE_READER_H_
 
 
 #include <bmx/essence_parser/RawEssenceReader.h>
-#include <bmx/essence_parser/AVCIEssenceParser.h>
+#include <bmx/essence_parser/AVCEssenceParser.h>
 
 
 
@@ -46,7 +46,7 @@ namespace bmx
 class AVCIRawEssenceReader : public RawEssenceReader
 {
 public:
-    AVCIRawEssenceReader(FILE *raw_input);
+    AVCIRawEssenceReader(EssenceSource *essence_source);
     virtual ~AVCIRawEssenceReader();
 
     virtual uint32_t ReadSamples(uint32_t num_samples);
@@ -54,7 +54,7 @@ public:
     virtual void SetEssenceParser(EssenceParser *essence_parser);
 
 private:
-    AVCIEssenceParser *mAVCIParser;
+    AVCEssenceParser *mAVCParser;
     uint32_t mLastSampleSize;
 };
 

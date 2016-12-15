@@ -56,11 +56,6 @@ static bool compare_track(AS02Track *left, AS02Track *right)
 
 AS02Clip::AS02Clip(AS02Bundle *bundle, string filepath, mxfRational frame_rate)
 {
-    BMX_CHECK(frame_rate == FRAME_RATE_25 ||
-              frame_rate == FRAME_RATE_2997 ||
-              frame_rate == FRAME_RATE_50 ||
-              frame_rate == FRAME_RATE_5994);
-
     mBundle = bundle;
     mClipFilename = strip_path(filepath);
     mClipFrameRate = frame_rate;
@@ -178,7 +173,7 @@ void AS02Clip::CompleteWrite()
     size_t i;
     for (i = 0; i < mTracks.size(); i++) {
         BMX_CHECK_M(mTracks[i]->HasValidDuration(),
-                   ("Invalid start/end offsets. Track %"PRIszt" has duration that is too small"));
+                   ("Invalid start/end offsets. Track %" PRIszt " has duration that is too small"));
     }
 
     for (i = 0; i < mTracks.size(); i++)

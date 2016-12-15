@@ -34,6 +34,7 @@
 #endif
 
 #include <algorithm>
+#include <set>
 
 #include <bmx/mxf_reader/MXFSequenceReader.h>
 #include <bmx/mxf_reader/MXFSequenceTrackReader.h>
@@ -73,8 +74,10 @@ static bool compare_group_reader(const MXFGroupReader *left, const MXFGroupReade
 MXFSequenceReader::MXFSequenceReader()
 : MXFReader()
 {
+    mEmptyFrames = false;
+    mEmptyFramesSet = false;
     mReadStartPosition = 0;
-    mReadDuration = 0;
+    mReadDuration = -1;
     mPosition = 0;
 }
 
@@ -92,8 +95,33 @@ MXFSequenceReader::~MXFSequenceReader()
         delete mTrackReaders[i];
 }
 
+void MXFSequenceReader::SetEmptyFrames(bool enable)
+{
+    mEmptyFrames = enable;
+    mEmptyFramesSet = true;
+
+    size_t i;
+    for (i = 0; i < mTrackReaders.size(); i++)
+        mTrackReaders[i]->SetEmptyFrames(enable);
+}
+
+void MXFSequenceReader::SetFileIndex(MXFFileIndex *file_index, bool take_ownership)
+{
+    MXFReader::SetFileIndex(file_index, take_ownership);
+
+    size_t i;
+    for (i = 0; i < mReaders.size(); i++)
+        mReaders[i]->SetFileIndex(file_index, false);
+}
+
 void MXFSequenceReader::AddReader(MXFReader *reader)
 {
+    // TODO: support incomplete files
+    if (!reader->IsComplete())
+        BMX_EXCEPTION(("MXF sequence reader currently only supports complete files with known duration"));
+
+    reader->SetFileIndex(mFileIndex, false);
+    reader->SetMCALabelIndex(mMCALabelIndex, false);
     mReaders.push_back(reader);
 }
 
@@ -106,27 +134,27 @@ bool MXFSequenceReader::Finalize(bool check_is_complete, bool keep_input_order)
             throw false;
         }
 
-        // the lowest input sample rate is the sequence reader sample rate
-        float lowest_sample_rate = 1000000.0;
+        // the lowest input edit rate is the sequence reader edit rate
+        float lowest_edit_rate = 1000000.0;
         size_t i;
         for (i = 0; i < mReaders.size(); i++) {
-            float sample_rate = mReaders[i]->GetSampleRate().numerator /
-                                        (float)mReaders[i]->GetSampleRate().denominator;
-            if (sample_rate < lowest_sample_rate) {
-                mSampleRate = mReaders[i]->GetSampleRate();
-                lowest_sample_rate = sample_rate;
+            float edit_rate = mReaders[i]->GetEditRate().numerator /
+                                        (float)mReaders[i]->GetEditRate().denominator;
+            if (edit_rate < lowest_edit_rate) {
+                mEditRate = mReaders[i]->GetEditRate();
+                lowest_edit_rate = edit_rate;
             }
         }
-        BMX_CHECK(mSampleRate.numerator != 0);
+        BMX_CHECK(mEditRate.numerator != 0);
 
 
         // group inputs by material package uid and lead filler offset
         // need to consider the leading filler offset for spanned P2 files
         map<pair<mxfUMID, int64_t>, MXFGroupReader*> group_ids;
         for (i = 0; i < mReaders.size(); i++) {
-            int64_t lead_offset = convert_position(mReaders[i]->GetSampleRate(),
+            int64_t lead_offset = convert_position(mReaders[i]->GetEditRate(),
                                                    mReaders[i]->GetFixedLeadFillerOffset(),
-                                                   mSampleRate,
+                                                   mEditRate,
                                                    ROUND_UP);
 
             MXFGroupReader *group_reader;
@@ -200,7 +228,7 @@ bool MXFSequenceReader::Finalize(bool check_is_complete, bool keep_input_order)
                 }
             }
 
-            expected_start_tc.AddOffset(mGroupSegments[i]->GetDuration(), mGroupSegments[i]->GetSampleRate());
+            expected_start_tc.AddOffset(mGroupSegments[i]->GetDuration(), mGroupSegments[i]->GetEditRate());
         }
 
 
@@ -235,17 +263,17 @@ bool MXFSequenceReader::Finalize(bool check_is_complete, bool keep_input_order)
 
                     // skip tracks where sequence duration != first appended track's sequence duration
                     if (first_extended_seq_track) {
-                        int64_t seq_track_duration = convert_duration(seq_track->GetSampleRate(),
+                        int64_t seq_track_duration = convert_duration(seq_track->GetEditRate(),
                                                                       seq_track->GetDuration(),
-                                                                      mSampleRate,
+                                                                      mEditRate,
                                                                       ROUND_AUTO);
-                        int64_t group_track_duration = convert_duration(group_track->GetSampleRate(),
+                        int64_t group_track_duration = convert_duration(group_track->GetEditRate(),
                                                                         group_track->GetDuration(),
-                                                                        mSampleRate,
+                                                                        mEditRate,
                                                                         ROUND_AUTO);
-                        int64_t first_seq_track_duration = convert_duration(first_extended_seq_track->GetSampleRate(),
+                        int64_t first_seq_track_duration = convert_duration(first_extended_seq_track->GetEditRate(),
                                                                             first_extended_seq_track->GetDuration(),
-                                                                            mSampleRate,
+                                                                            mEditRate,
                                                                             ROUND_AUTO);
                         if (seq_track_duration + group_track_duration != first_seq_track_duration)
                         {
@@ -302,11 +330,11 @@ bool MXFSequenceReader::Finalize(bool check_is_complete, bool keep_input_order)
         // extract the sample sequences for each group
         for (i = 0; i < mGroupSegments.size(); i++) {
             vector<uint32_t> sample_sequence;
-            if (!get_sample_sequence(mSampleRate, mGroupSegments[i]->GetSampleRate(), &sample_sequence)) {
-                mxfRational group_sample_rate = mGroupSegments[i]->GetSampleRate();
-                log_error("Incompatible sequence sample rate (%d/%d) and group sample rate (%d/%d)\n",
-                          mSampleRate.numerator, mSampleRate.denominator,
-                          group_sample_rate.numerator, group_sample_rate.denominator);
+            if (!get_sample_sequence(mEditRate, mGroupSegments[i]->GetEditRate(), &sample_sequence)) {
+                mxfRational group_edit_rate = mGroupSegments[i]->GetEditRate();
+                log_error("Incompatible sequence edit rate (%d/%d) and group edit rate (%d/%d)\n",
+                          mEditRate.numerator, mEditRate.denominator,
+                          group_edit_rate.numerator, group_edit_rate.denominator);
                 throw false;
             }
 
@@ -362,9 +390,9 @@ bool MXFSequenceReader::Finalize(bool check_is_complete, bool keep_input_order)
                 }
             }
 
-            mat_expected_start_tc.AddOffset(mGroupSegments[i]->GetDuration(), mGroupSegments[i]->GetSampleRate());
-            fs_expected_start_tc.AddOffset(mGroupSegments[i]->GetDuration(), mGroupSegments[i]->GetSampleRate());
-            ps_expected_start_tc.AddOffset(mGroupSegments[i]->GetDuration(), mGroupSegments[i]->GetSampleRate());
+            mat_expected_start_tc.AddOffset(mGroupSegments[i]->GetDuration(), mGroupSegments[i]->GetEditRate());
+            fs_expected_start_tc.AddOffset(mGroupSegments[i]->GetDuration(), mGroupSegments[i]->GetEditRate());
+            ps_expected_start_tc.AddOffset(mGroupSegments[i]->GetDuration(), mGroupSegments[i]->GetEditRate());
         }
         if (mat_valid) {
             mMaterialStartTimecode = new Timecode(mGroupSegments[0]->GetMaterialTimecode(
@@ -377,6 +405,20 @@ bool MXFSequenceReader::Finalize(bool check_is_complete, bool keep_input_order)
             mPhysicalSourceStartTimecode = new Timecode(mGroupSegments[0]->GetPhysicalSourceTimecode(0));;
         }
 
+
+        // enable/disable empty frames
+        if (mEmptyFramesSet) {
+            for (i = 0; i < mTrackReaders.size(); i++)
+                mTrackReaders[i]->SetEmptyFrames(mEmptyFrames);
+        }
+
+
+        // collect together all text objects
+        for (i = 0; i < mReaders.size(); i++) {
+            size_t k;
+            for (k = 0; k < mReaders[i]->GetNumTextObjects(); k++)
+                mTextObjects.push_back(mReaders[i]->GetTextObject(k));
+        }
 
 
         // set default group sequence read limits
@@ -397,6 +439,8 @@ bool MXFSequenceReader::Finalize(bool check_is_complete, bool keep_input_order)
             delete mTrackReaders[i];
         mTrackReaders.clear();
 
+        mTextObjects.clear();
+
         mSampleSequences.clear();
         mSampleSequenceSizes.clear();
         mSegmentOffsets.clear();
@@ -409,7 +453,7 @@ bool MXFSequenceReader::Finalize(bool check_is_complete, bool keep_input_order)
 void MXFSequenceReader::UpdateReadLimits()
 {
     mReadStartPosition = 0;
-    mReadDuration = 0;
+    mReadDuration = -1;
 
     if (mGroupSegments.empty())
         return;
@@ -435,10 +479,55 @@ void MXFSequenceReader::UpdateReadLimits()
     }
 }
 
-void MXFSequenceReader::GetAvailableReadLimits(int64_t *start_position, int64_t *duration) const
+MXFFileReader* MXFSequenceReader::GetFileReader(size_t file_id)
 {
-    int16_t precharge = GetMaxPrecharge(0, true);
-    int16_t rollout = GetMaxRollout(mDuration - 1, true);
+    MXFFileReader *reader = 0;
+    size_t i;
+    for (i = 0; i < mReaders.size(); i++) {
+        reader = mReaders[i]->GetFileReader(file_id);
+        if (reader)
+            break;
+    }
+
+    return reader;
+}
+
+vector<size_t> MXFSequenceReader::GetFileIds(bool internal_ess_only) const
+{
+    set<size_t> file_id_set;
+    size_t i;
+    for (i = 0; i < mTrackReaders.size(); i++) {
+        vector<size_t> track_file_ids = mTrackReaders[i]->GetFileIds(internal_ess_only);
+        file_id_set.insert(track_file_ids.begin(), track_file_ids.end());
+    }
+
+    vector<size_t> file_ids;
+    file_ids.insert(file_ids.begin(), file_id_set.begin(), file_id_set.end());
+
+    return file_ids;
+}
+
+bool MXFSequenceReader::IsComplete() const
+{
+    // TODO: support incomplete files
+    return true;
+}
+
+bool MXFSequenceReader::IsSeekable() const
+{
+    size_t i;
+    for (i = 0; i < mReaders.size(); i++) {
+        if (!mReaders[i]->IsSeekable())
+            return false;
+    }
+
+    return true;
+}
+
+void MXFSequenceReader::GetReadLimits(bool limit_to_available, int64_t *start_position, int64_t *duration) const
+{
+    int16_t precharge = GetMaxPrecharge(0, limit_to_available);
+    int16_t rollout = GetMaxRollout(mDuration - 1, limit_to_available);
     *start_position = 0 + precharge;
     *duration = - precharge + mDuration + rollout;
 }
@@ -447,7 +536,7 @@ void MXFSequenceReader::SetReadLimits()
 {
     int64_t start_position;
     int64_t duration;
-    GetAvailableReadLimits(&start_position, &duration);
+    GetReadLimits(false, &start_position, &duration);
     SetReadLimits(start_position, duration, true);
 }
 
@@ -502,7 +591,7 @@ uint32_t MXFSequenceReader::Read(uint32_t num_samples, bool is_top)
         return 0;
 
     if (is_top) {
-        SetNextFramePosition(mPosition);
+        SetNextFramePosition(mEditRate, mPosition);
         SetNextFrameTrackPositions();
     }
 
@@ -644,12 +733,18 @@ int16_t MXFSequenceReader::GetTrackRollout(size_t track_index, int64_t clip_posi
     return segment->GetTrackRollout(track_index, segment_position, clip_rollout);
 }
 
-void MXFSequenceReader::SetNextFramePosition(int64_t position)
+MXFTextObject* MXFSequenceReader::GetTextObject(size_t index) const
+{
+    BMX_CHECK(index < mTextObjects.size());
+    return mTextObjects[index];
+}
+
+void MXFSequenceReader::SetNextFramePosition(Rational edit_rate, int64_t position)
 {
     size_t i;
     for (i = 0; i < mTrackReaders.size(); i++) {
         if (mTrackReaders[i]->IsEnabled())
-            mTrackReaders[i]->GetMXFFrameBuffer()->SetNextFramePosition(position);
+            mTrackReaders[i]->GetMXFFrameBuffer()->SetNextFramePosition(edit_rate, position);
     }
 }
 
@@ -659,9 +754,16 @@ void MXFSequenceReader::SetNextFrameTrackPositions()
     for (i = 0; i < mTrackReaders.size(); i++) {
         if (mTrackReaders[i]->IsEnabled()) {
             mTrackReaders[i]->GetMXFFrameBuffer()->SetNextFrameTrackPosition(
-                mTrackReaders[i]->GetPosition());
+                mTrackReaders[i]->GetEditRate(), mTrackReaders[i]->GetPosition());
         }
     }
+}
+
+void MXFSequenceReader::SetTemporaryFrameBuffer(bool enable)
+{
+    size_t i;
+    for (i = 0; i < mGroupSegments.size(); i++)
+        mGroupSegments[i]->SetTemporaryFrameBuffer(enable);
 }
 
 bool MXFSequenceReader::FindSequenceStart(const vector<MXFGroupReader*> &group_readers, size_t *seq_start_index_out) const
@@ -686,7 +788,7 @@ bool MXFSequenceReader::FindSequenceStart(const vector<MXFGroupReader*> &group_r
         }
 
         expected_start_timecode = start_timecode;
-        expected_start_timecode.AddOffset(group_readers[index]->GetDuration(), group_readers[index]->GetSampleRate());
+        expected_start_timecode.AddOffset(group_readers[index]->GetDuration(), group_readers[index]->GetEditRate());
     }
 
     *seq_start_index_out = (seq_start_index == (size_t)(-1) ? 0 : seq_start_index);

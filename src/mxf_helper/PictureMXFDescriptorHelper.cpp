@@ -38,12 +38,14 @@
 #include <bmx/mxf_helper/PictureMXFDescriptorHelper.h>
 #include <bmx/mxf_helper/D10MXFDescriptorHelper.h>
 #include <bmx/mxf_helper/DVMXFDescriptorHelper.h>
+#include <bmx/mxf_helper/AVCMXFDescriptorHelper.h>
 #include <bmx/mxf_helper/AVCIMXFDescriptorHelper.h>
 #include <bmx/mxf_helper/UncCDCIMXFDescriptorHelper.h>
 #include <bmx/mxf_helper/UncRGBAMXFDescriptorHelper.h>
 #include <bmx/mxf_helper/MPEG2LGMXFDescriptorHelper.h>
 #include <bmx/mxf_helper/VC3MXFDescriptorHelper.h>
 #include <bmx/mxf_helper/MJPEGMXFDescriptorHelper.h>
+#include <bmx/mxf_helper/VC2MXFDescriptorHelper.h>
 #include <bmx/MXFUtils.h>
 #include <bmx/BMXTypes.h>
 #include <bmx/BMXException.h>
@@ -73,6 +75,9 @@ EssenceType PictureMXFDescriptorHelper::IsSupported(FileDescriptor *file_descrip
     essence_type = AVCIMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
     if (essence_type)
         return essence_type;
+    essence_type = AVCMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
+    if (essence_type)
+        return essence_type;
     essence_type = UncCDCIMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
     if (essence_type)
         return essence_type;
@@ -80,6 +85,9 @@ EssenceType PictureMXFDescriptorHelper::IsSupported(FileDescriptor *file_descrip
     if (essence_type)
         return essence_type;
     essence_type = MPEG2LGMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
+    if (essence_type)
+        return essence_type;
+    essence_type = VC2MXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
     if (essence_type)
         return essence_type;
     essence_type = VC3MXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label);
@@ -102,12 +110,16 @@ PictureMXFDescriptorHelper* PictureMXFDescriptorHelper::Create(FileDescriptor *f
         helper = new DVMXFDescriptorHelper();
     else if (AVCIMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
         helper = new AVCIMXFDescriptorHelper();
+    else if (AVCMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
+        helper = new AVCMXFDescriptorHelper();
     else if (UncCDCIMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
         helper = new UncCDCIMXFDescriptorHelper();
     else if (UncRGBAMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
         helper = new UncRGBAMXFDescriptorHelper();
     else if (MPEG2LGMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
         helper = new MPEG2LGMXFDescriptorHelper();
+    else if (VC2MXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
+        helper = new VC2MXFDescriptorHelper();
     else if (VC3MXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
         helper = new VC3MXFDescriptorHelper();
     else if (MJPEGMXFDescriptorHelper::IsSupported(file_descriptor, alternative_ec_label))
@@ -125,9 +137,11 @@ bool PictureMXFDescriptorHelper::IsSupported(EssenceType essence_type)
     return D10MXFDescriptorHelper::IsSupported(essence_type) ||
            DVMXFDescriptorHelper::IsSupported(essence_type) ||
            AVCIMXFDescriptorHelper::IsSupported(essence_type) ||
+           AVCMXFDescriptorHelper::IsSupported(essence_type) ||
            UncCDCIMXFDescriptorHelper::IsSupported(essence_type) ||
            UncRGBAMXFDescriptorHelper::IsSupported(essence_type) ||
            MPEG2LGMXFDescriptorHelper::IsSupported(essence_type) ||
+           VC2MXFDescriptorHelper::IsSupported(essence_type) ||
            VC3MXFDescriptorHelper::IsSupported(essence_type) ||
            MJPEGMXFDescriptorHelper::IsSupported(essence_type);
 }
@@ -143,12 +157,16 @@ MXFDescriptorHelper* PictureMXFDescriptorHelper::Create(EssenceType essence_type
         helper = new DVMXFDescriptorHelper();
     else if (AVCIMXFDescriptorHelper::IsSupported(essence_type))
         helper = new AVCIMXFDescriptorHelper();
+    else if (AVCMXFDescriptorHelper::IsSupported(essence_type))
+        helper = new AVCMXFDescriptorHelper();
     else if (UncCDCIMXFDescriptorHelper::IsSupported(essence_type))
         helper = new UncCDCIMXFDescriptorHelper();
     else if (UncRGBAMXFDescriptorHelper::IsSupported(essence_type))
         helper = new UncRGBAMXFDescriptorHelper();
     else if (MPEG2LGMXFDescriptorHelper::IsSupported(essence_type))
         helper = new MPEG2LGMXFDescriptorHelper();
+    else if (VC2MXFDescriptorHelper::IsSupported(essence_type))
+        helper = new VC2MXFDescriptorHelper();
     else if (VC3MXFDescriptorHelper::IsSupported(essence_type))
         helper = new VC3MXFDescriptorHelper();
     else if (MJPEGMXFDescriptorHelper::IsSupported(essence_type))
@@ -165,15 +183,22 @@ PictureMXFDescriptorHelper::PictureMXFDescriptorHelper()
 : MXFDescriptorHelper()
 {
     mEssenceType = PICTURE_ESSENCE;
-    mAspectRatio = ASPECT_RATIO_16_9;
-    mAFD = 0;
     mAvidResolutionId = 0;
-    mImageAlignmentOffset = 1;
-    mImageAlignmentOffsetSet = false;
-    mImageStartOffset = 0;
-    mImageStartOffsetSet = false;
-    mImageEndOffset = 0;
-    mImageEndOffsetSet = false;
+    BMX_OPT_PROP_DEFAULT(mAspectRatio, ASPECT_RATIO_16_9);
+    BMX_OPT_PROP_DEFAULT(mAFD, 0);
+    BMX_OPT_PROP_DEFAULT(mImageAlignmentOffset, 1);
+    BMX_OPT_PROP_DEFAULT(mImageStartOffset, 0);
+    BMX_OPT_PROP_DEFAULT(mImageEndOffset, 0);
+    BMX_OPT_PROP_DEFAULT(mSignalStandard, MXF_SIGNAL_STANDARD_NONE);
+    BMX_OPT_PROP_DEFAULT(mFrameLayout, MXF_FULL_FRAME);
+    BMX_OPT_PROP_DEFAULT(mColorSiting, MXF_COLOR_SITING_UNKNOWN);
+    BMX_OPT_PROP_DEFAULT(mFieldDominance, 1);
+    BMX_OPT_PROP_DEFAULT(mBlackRefLevel, 0);
+    BMX_OPT_PROP_DEFAULT(mWhiteRefLevel, 0);
+    BMX_OPT_PROP_DEFAULT(mColorRange, 0);
+    BMX_OPT_PROP_DEFAULT(mTransferCh, g_Null_UL);
+    BMX_OPT_PROP_DEFAULT(mCodingEquations, g_Null_UL);
+    BMX_OPT_PROP_DEFAULT(mColorPrimaries, g_Null_UL);
 }
 
 PictureMXFDescriptorHelper::~PictureMXFDescriptorHelper()
@@ -187,46 +212,106 @@ void PictureMXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uin
 
     GenericPictureEssenceDescriptor *picture_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
     BMX_ASSERT(picture_descriptor);
-
-    if (picture_descriptor->haveActiveFormatDescriptor()) {
-        decode_afd(picture_descriptor->getActiveFormatDescriptor(), mxf_version, &mAFD, &mAspectRatio);
-    } else {
-        mAFD = 0;
-        mAspectRatio = ZERO_RATIONAL;
-    }
+    CDCIEssenceDescriptor *cdci_descriptor = dynamic_cast<CDCIEssenceDescriptor*>(picture_descriptor);
 
     if (picture_descriptor->haveAspectRatio())
-        mAspectRatio = picture_descriptor->getAspectRatio();
-
+        BMX_OPT_PROP_SET(mAspectRatio, picture_descriptor->getAspectRatio());
+    if (picture_descriptor->haveActiveFormatDescriptor()) {
+        mxfRational afd_aspect_ratio;
+        decode_afd(picture_descriptor->getActiveFormatDescriptor(), mxf_version, &mAFD, &afd_aspect_ratio);
+        BMX_OPT_PROP_MARK(mAFD, true);
+        // the Aspect Ratio property takes precedence over the value encoded in the AFD
+        if (!BMX_OPT_PROP_IS_SET(mAspectRatio))
+            mAspectRatio = afd_aspect_ratio;
+    }
     if (picture_descriptor->haveImageAlignmentOffset())
-        mImageAlignmentOffset = picture_descriptor->getImageAlignmentOffset();
-    else
-        mImageAlignmentOffset = 1;
-    mImageAlignmentOffsetSet = true;
-
+        BMX_OPT_PROP_SET(mImageAlignmentOffset, picture_descriptor->getImageAlignmentOffset());
     if (picture_descriptor->haveImageStartOffset())
-        mImageStartOffset = picture_descriptor->getImageStartOffset();
-    else
-        mImageStartOffset = 0;
-    mImageStartOffsetSet = true;
-
+        BMX_OPT_PROP_SET(mImageStartOffset, picture_descriptor->getImageStartOffset());
     if (picture_descriptor->haveImageEndOffset())
-        mImageEndOffset = picture_descriptor->getImageEndOffset();
-    else
-        mImageEndOffset = 0;
-    mImageEndOffsetSet = true;
+        BMX_OPT_PROP_SET(mImageEndOffset, picture_descriptor->getImageEndOffset());
+    if (picture_descriptor->haveSignalStandard())
+        BMX_OPT_PROP_SET(mSignalStandard, picture_descriptor->getSignalStandard());
+    if (picture_descriptor->haveFrameLayout())
+        BMX_OPT_PROP_SET(mFrameLayout, picture_descriptor->getFrameLayout());
+    if (picture_descriptor->haveFieldDominance())
+        BMX_OPT_PROP_SET(mFieldDominance, picture_descriptor->getFieldDominance());
+    if (picture_descriptor->haveCaptureGamma())
+        BMX_OPT_PROP_SET(mTransferCh, picture_descriptor->getCaptureGamma());
+    if (picture_descriptor->haveCodingEquations())
+        BMX_OPT_PROP_SET(mCodingEquations, picture_descriptor->getCodingEquations());
+    if (picture_descriptor->haveColorPrimaries())
+        BMX_OPT_PROP_SET(mColorPrimaries, picture_descriptor->getColorPrimaries());
+    if (cdci_descriptor) {
+        if (cdci_descriptor->haveColorSiting())
+            BMX_OPT_PROP_SET(mColorSiting, cdci_descriptor->getColorSiting());
+        if (cdci_descriptor->haveBlackRefLevel())
+            BMX_OPT_PROP_SET(mBlackRefLevel, cdci_descriptor->getBlackRefLevel());
+        if (cdci_descriptor->haveWhiteReflevel())
+            BMX_OPT_PROP_SET(mWhiteRefLevel, cdci_descriptor->getWhiteReflevel());
+        if (cdci_descriptor->haveColorRange())
+            BMX_OPT_PROP_SET(mColorRange, cdci_descriptor->getColorRange());
+    }
 }
 
 void PictureMXFDescriptorHelper::SetAspectRatio(mxfRational aspect_ratio)
 {
-    BMX_ASSERT(!mFileDescriptor);
-
-    mAspectRatio = aspect_ratio;
+    BMX_OPT_PROP_SET(mAspectRatio, aspect_ratio);
 }
 
 void PictureMXFDescriptorHelper::SetAFD(uint8_t afd)
 {
-    mAFD = afd;
+    BMX_OPT_PROP_SET(mAFD, afd);
+}
+
+void PictureMXFDescriptorHelper::SetSignalStandard(MXFSignalStandard signal_standard)
+{
+    BMX_OPT_PROP_SET(mSignalStandard, signal_standard);
+}
+
+void PictureMXFDescriptorHelper::SetFrameLayout(MXFFrameLayout frame_layout)
+{
+    BMX_OPT_PROP_SET(mFrameLayout, frame_layout);
+}
+
+void PictureMXFDescriptorHelper::SetFieldDominance(uint8_t field_num)
+{
+    BMX_OPT_PROP_SET(mFieldDominance, field_num);
+}
+
+void PictureMXFDescriptorHelper::SetTransferCharacteristic(mxfUL label)
+{
+    BMX_OPT_PROP_SET(mTransferCh, label);
+}
+
+void PictureMXFDescriptorHelper::SetCodingEquations(mxfUL label)
+{
+    BMX_OPT_PROP_SET(mCodingEquations, label);
+}
+
+void PictureMXFDescriptorHelper::SetColorPrimaries(mxfUL label)
+{
+    BMX_OPT_PROP_SET(mColorPrimaries, label);
+}
+
+void PictureMXFDescriptorHelper::SetColorSiting(MXFColorSiting color_siting)
+{
+    BMX_OPT_PROP_SET(mColorSiting, color_siting);
+}
+
+void PictureMXFDescriptorHelper::SetBlackRefLevel(uint32_t level)
+{
+    BMX_OPT_PROP_SET(mBlackRefLevel, level);
+}
+
+void PictureMXFDescriptorHelper::SetWhiteRefLevel(uint32_t level)
+{
+    BMX_OPT_PROP_SET(mWhiteRefLevel, level);
+}
+
+void PictureMXFDescriptorHelper::SetColorRange(uint32_t range)
+{
+    BMX_OPT_PROP_SET(mColorRange, range);
 }
 
 FileDescriptor* PictureMXFDescriptorHelper::CreateFileDescriptor(HeaderMetadata *header_metadata)
@@ -244,12 +329,36 @@ void PictureMXFDescriptorHelper::UpdateFileDescriptor()
 
     GenericPictureEssenceDescriptor *picture_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(mFileDescriptor);
     BMX_ASSERT(picture_descriptor);
+    CDCIEssenceDescriptor *cdci_descriptor = dynamic_cast<CDCIEssenceDescriptor*>(mFileDescriptor);
 
     picture_descriptor->setAspectRatio(mAspectRatio);
-    if (mAFD)
+    // TODO: what should be done if the source AFD value's aspect ratio != mAspectRatio?
+    if (BMX_OPT_PROP_IS_SET(mAFD))
         picture_descriptor->setActiveFormatDescriptor(encode_afd(mAFD, mAspectRatio));
+    if (BMX_OPT_PROP_IS_SET(mSignalStandard))
+        picture_descriptor->setSignalStandard(mSignalStandard);
+    if (BMX_OPT_PROP_IS_SET(mFrameLayout))
+        picture_descriptor->setFrameLayout(mFrameLayout);
+    if (BMX_OPT_PROP_IS_SET(mFieldDominance))
+        picture_descriptor->setFieldDominance(mFieldDominance);
+    if (BMX_OPT_PROP_IS_SET(mTransferCh))
+        picture_descriptor->setCaptureGamma(mTransferCh);
+    if (BMX_OPT_PROP_IS_SET(mCodingEquations))
+        SetCodingEquationsMod(mCodingEquations);
+    if (BMX_OPT_PROP_IS_SET(mColorPrimaries))
+        picture_descriptor->setColorPrimaries(mColorPrimaries);
+    if (cdci_descriptor) {
+        if (BMX_OPT_PROP_IS_SET(mColorSiting))
+            SetColorSitingMod(mColorSiting);
+        if (BMX_OPT_PROP_IS_SET(mBlackRefLevel))
+            cdci_descriptor->setBlackRefLevel(mBlackRefLevel);
+        if (BMX_OPT_PROP_IS_SET(mWhiteRefLevel))
+            cdci_descriptor->setWhiteReflevel(mWhiteRefLevel);
+        if (BMX_OPT_PROP_IS_SET(mColorRange))
+            cdci_descriptor->setColorRange(mColorRange);
+    }
 
-    if (mFlavour == AVID_FLAVOUR) {
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR)) {
         if (GetImageAlignmentOffset() > 1)
             picture_descriptor->setImageAlignmentOffset(GetImageAlignmentOffset());
         if (GetImageStartOffset() > 0)
@@ -340,49 +449,39 @@ mxfUL PictureMXFDescriptorHelper::ChooseEssenceContainerUL() const
     return g_Null_UL;
 }
 
-void PictureMXFDescriptorHelper::SetCodingEquations(mxfUL label)
+void PictureMXFDescriptorHelper::SetCodingEquationsMod(mxfUL label)
 {
     GenericPictureEssenceDescriptor *picture_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(mFileDescriptor);
     BMX_ASSERT(picture_descriptor);
 
     mxfAUID auid;
-    switch (mFlavour)
-    {
-        case SMPTE_377_2004_FLAVOUR:
-        case SMPTE_377_1_FLAVOUR:
-            picture_descriptor->setCodingEquations(label);
-            break;
-        case AVID_FLAVOUR:
-            // this label is half-swapped in Avid files
-            // Note that 377-1 defines an AUID with a UL stored as-is and an UUID half swapped. An IDAU has the
-            // opposite, swapping the UL. The "AUID" (aafUID_t) type defined in the AAF SDK is therefore an IDAU! The
-            // mxfAUID type and mxf_avid_set_auid function follow the AAF SDK naming
-            mxf_avid_set_auid(&label, &auid);
-            picture_descriptor->setCodingEquations(auid);
-            break;
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR)) {
+        // this label is half-swapped in Avid files
+        // Note that 377-1 defines an AUID with a UL stored as-is and an UUID half swapped. An IDAU has the
+        // opposite, swapping the UL. The "AUID" (aafUID_t) type defined in the AAF SDK is therefore an IDAU! The
+        // mxfAUID type and mxf_avid_set_auid function follow the AAF SDK naming
+        mxf_avid_set_auid(&label, &auid);
+        picture_descriptor->setCodingEquations(auid);
+    } else {
+        picture_descriptor->setCodingEquations(label);
     }
 }
 
-void PictureMXFDescriptorHelper::SetColorSiting(uint8_t color_siting)
+void PictureMXFDescriptorHelper::SetColorSitingMod(uint8_t color_siting)
 {
     CDCIEssenceDescriptor *cdci_descriptor = dynamic_cast<CDCIEssenceDescriptor*>(mFileDescriptor);
     BMX_ASSERT(cdci_descriptor);
 
-    switch (mFlavour)
-    {
-        case SMPTE_377_2004_FLAVOUR:
-        case AVID_FLAVOUR:
-            if (color_siting > MXF_COLOR_SITING_REC601)
-                cdci_descriptor->setColorSiting(MXF_COLOR_SITING_UNKNOWN);
-            else
-                cdci_descriptor->setColorSiting(color_siting);
-            break;
-        case SMPTE_377_1_FLAVOUR:
-            if (color_siting > MXF_COLOR_SITING_VERT_MIDPOINT)
-                cdci_descriptor->setColorSiting(MXF_COLOR_SITING_UNKNOWN);
-            else
-                cdci_descriptor->setColorSiting(color_siting);
-            break;
+    if ((mFlavour & MXFDESC_SMPTE_377_2004_FLAVOUR)) {
+        if (color_siting > MXF_COLOR_SITING_REC601)
+            cdci_descriptor->setColorSiting(MXF_COLOR_SITING_UNKNOWN);
+        else
+            cdci_descriptor->setColorSiting(color_siting);
+    } else {
+        // MXF_COLOR_SITING_VERT_MIDPOINT is 2nd of 2 additional color siting enums added in SMPTE 377-1
+        if (color_siting > MXF_COLOR_SITING_VERT_MIDPOINT)
+            cdci_descriptor->setColorSiting(MXF_COLOR_SITING_UNKNOWN);
+        else
+            cdci_descriptor->setColorSiting(color_siting);
     }
 }
-

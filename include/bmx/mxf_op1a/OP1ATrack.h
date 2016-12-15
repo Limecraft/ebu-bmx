@@ -29,9 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_OP1A_TRACK_H__
-#define __BMX_OP1A_TRACK_H__
-
+#ifndef BMX_OP1A_TRACK_H_
+#define BMX_OP1A_TRACK_H_
 
 #include <libMXF++/MXF.h>
 
@@ -66,16 +65,20 @@ public:
     void SetLowerLevelSourcePackage(mxfpp::SourcePackage *package, uint32_t track_id, std::string uri);
     void SetLowerLevelSourcePackage(mxfUMID package_uid, uint32_t track_id);
 
+    MXFDescriptorHelper* GetMXFDescriptorHelper() { return mDescriptorHelper; }
+
 public:
     void WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples);
 
 public:
     uint32_t GetTrackIndex() const { return mTrackIndex; }
 
-    bool IsPicture() const { return mIsPicture; }
+    MXFDataDefEnum GetDataDef() const { return mDataDef; }
     mxfUL GetEssenceContainerUL() const;
 
     uint32_t GetSampleSize();
+
+    mxfRational GetEditRate() const { return mEditRate; }
 
     int64_t GetDuration() const;
     int64_t GetContainerDuration() const;
@@ -84,12 +87,13 @@ protected:
     OP1ATrack(OP1AFile *file, uint32_t track_index, uint32_t track_id, uint8_t track_type_number,
               mxfRational frame_rate, EssenceType essence_type);
 
-    void AddHeaderMetadata(mxfpp::HeaderMetadata *header_metadata, mxfpp::MaterialPackage *material_package,
-                           mxfpp::SourcePackage *file_source_package);
+    virtual void AddHeaderMetadata(mxfpp::HeaderMetadata *header_metadata, mxfpp::MaterialPackage *material_package,
+                                   mxfpp::SourcePackage *file_source_package);
 
 protected:
-    virtual void PrepareWrite(uint8_t picture_track_count, uint8_t sound_track_count) = 0;
+    virtual void PrepareWrite(uint8_t track_count) = 0;
     virtual void WriteSamplesInt(const unsigned char *data, uint32_t size, uint32_t num_samples);
+    virtual void WriteSampleInt(const CDataBuffer *data_array, uint32_t array_size);
     virtual void CompleteWrite() {}
 
     void CompleteEssenceKeyAndTrackNum(uint8_t track_count);
@@ -105,8 +109,9 @@ protected:
     uint32_t mTrackId;
     uint32_t mOutputTrackNumber;
     bool mOutputTrackNumberSet;
-    bool mIsPicture;
+    MXFDataDefEnum mDataDef;
     mxfRational mFrameRate;
+    mxfRational mEditRate;
     uint32_t mTrackNumber;
     mxfKey mEssenceElementKey;
     uint8_t mTrackTypeNumber;

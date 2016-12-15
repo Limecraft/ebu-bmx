@@ -60,22 +60,92 @@ static const SupportedEssence SUPPORTED_ESSENCE[] =
 {
     {MXF_CMDEF_L(AVCI_100_1080_50_I),   AVCI100_1080I,   {25, 1},        568832,  0x0d58},
     {MXF_CMDEF_L(AVCI_100_1080_60_I),   AVCI100_1080I,   {30000, 1001},  472576,  0x0d57},
+    {MXF_CMDEF_L(AVCI_100_1080_25_P),   AVCI100_1080P,   {50, 1},        568832,       0},
     {MXF_CMDEF_L(AVCI_100_1080_25_P),   AVCI100_1080P,   {25, 1},        568832,  0x0d59},
+    {MXF_CMDEF_L(AVCI_100_1080_30_P),   AVCI100_1080P,   {60000, 1001},  472576,       0},
     {MXF_CMDEF_L(AVCI_100_1080_30_P),   AVCI100_1080P,   {30000, 1001},  472576,  0x0d5a},
+    {MXF_CMDEF_L(AVCI_100_1080_30_P),   AVCI100_1080P,   {24000, 1001},  472576,  0x0d5b},
     {MXF_CMDEF_L(AVCI_100_720_50_P),    AVCI100_720P,    {50, 1},        284672,  0x0d52},
     {MXF_CMDEF_L(AVCI_100_720_50_P),    AVCI100_720P,    {25, 1},        284672,  0x0d54},
     {MXF_CMDEF_L(AVCI_100_720_60_P),    AVCI100_720P,    {60000, 1001},  236544,  0x0d56},
     {MXF_CMDEF_L(AVCI_100_720_60_P),    AVCI100_720P,    {30000, 1001},  236544,  0x0d53},
+    {MXF_CMDEF_L(AVCI_100_720_60_P),    AVCI100_720P,    {24000, 1001},  236544,  0x0d55},
     {MXF_CMDEF_L(AVCI_50_1080_50_I),    AVCI50_1080I,    {25, 1},        281088,  0x0d4e},
     {MXF_CMDEF_L(AVCI_50_1080_60_I),    AVCI50_1080I,    {30000, 1001},  232960,  0x0d4d},
+    {MXF_CMDEF_L(AVCI_50_1080_25_P),    AVCI50_1080P,    {50, 1},        281088,       0},
     {MXF_CMDEF_L(AVCI_50_1080_25_P),    AVCI50_1080P,    {25, 1},        281088,  0x0d4f},
+    {MXF_CMDEF_L(AVCI_50_1080_30_P),    AVCI50_1080P,    {60000, 1001},  232960,       0},
     {MXF_CMDEF_L(AVCI_50_1080_30_P),    AVCI50_1080P,    {30000, 1001},  232960,  0x0d50},
+    {MXF_CMDEF_L(AVCI_50_1080_30_P),    AVCI50_1080P,    {24000, 1001},  232960,  0x0d51},
     {MXF_CMDEF_L(AVCI_50_720_50_P),     AVCI50_720P,     {50, 1},        140800,  0x0d48},
     {MXF_CMDEF_L(AVCI_50_720_50_P),     AVCI50_720P,     {25, 1},        140800,  0x0d4a},
     {MXF_CMDEF_L(AVCI_50_720_60_P),     AVCI50_720P,     {60000, 1001},  116736,  0x0d4c},
     {MXF_CMDEF_L(AVCI_50_720_60_P),     AVCI50_720P,     {30000, 1001},  116736,  0x0d49},
+    {MXF_CMDEF_L(AVCI_50_720_60_P),     AVCI50_720P,     {24000, 1001},  116736,  0x0d4b},
+    {MXF_CMDEF_L(AVCI_200_1080_50_I),   AVCI200_1080I,   {25, 1},        1144320,      0},
+    {MXF_CMDEF_L(AVCI_200_1080_60_I),   AVCI200_1080I,   {30000, 1001},  952832,       0},
+    {MXF_CMDEF_L(AVCI_200_1080_25_P),   AVCI200_1080P,   {50, 1},        1144320,      0},
+    {MXF_CMDEF_L(AVCI_200_1080_25_P),   AVCI200_1080P,   {25, 1},        1144320,      0},
+    {MXF_CMDEF_L(AVCI_200_1080_30_P),   AVCI200_1080P,   {60000, 1001},  952832,       0},
+    {MXF_CMDEF_L(AVCI_200_1080_30_P),   AVCI200_1080P,   {30000, 1001},  952832,       0},
+    {MXF_CMDEF_L(AVCI_200_1080_30_P),   AVCI200_1080P,   {24000, 1001},  952832,       0},
+    {MXF_CMDEF_L(AVCI_200_720_50_P),    AVCI200_720P,    {50, 1},        572416,       0},
+    {MXF_CMDEF_L(AVCI_200_720_50_P),    AVCI200_720P,    {25, 1},        572416,       0},
+    {MXF_CMDEF_L(AVCI_200_720_60_P),    AVCI200_720P,    {60000, 1001},  476672,       0},
+    {MXF_CMDEF_L(AVCI_200_720_60_P),    AVCI200_720P,    {30000, 1001},  476672,       0},
+    {MXF_CMDEF_L(AVCI_200_720_60_P),    AVCI200_720P,    {24000, 1001},  476672,       0},
 };
 
+typedef struct
+{
+    EssenceType essence_type;
+    mxfRational sample_rate;
+    uint8_t coded_content_kind;
+    uint32_t bit_rate;
+    uint8_t profile;
+    uint8_t profile_constraint;
+    uint8_t level;
+} AVCDescriptorInfo;
+
+static const AVCDescriptorInfo AVC_DESCRIPTOR_INFO[] =
+{
+    {AVCI100_1080I,   {25, 1},        MXF_AVC_INTERLACED_FRAME_PICTURE,   111820800,  122, 0x10, 41},
+    {AVCI100_1080I,   {30000, 1001},  MXF_AVC_INTERLACED_FRAME_PICTURE,   110972544,  122, 0x10, 41},
+    {AVCI100_1080P,   {50, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  223641600,  122, 0x10, 42},
+    {AVCI100_1080P,   {25, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  111820800,  122, 0x10, 41},
+    {AVCI100_1080P,   {60000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  221945088,  122, 0x10, 42},
+    {AVCI100_1080P,   {30000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  110972544,  122, 0x10, 41},
+    {AVCI100_1080P,   {24000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   88777984,  122, 0x10, 41},
+    {AVCI100_720P,    {50, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  111616000,  122, 0x10, 41},
+    {AVCI100_720P,    {25, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   55808000,  122, 0x10, 41},
+    {AVCI100_720P,    {60000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  110726976,  122, 0x10, 41},
+    {AVCI100_720P,    {30000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   55363456,  122, 0x10, 41},
+    {AVCI100_720P,    {24000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   44290752,  122, 0x10, 41},
+    {AVCI50_1080I,    {25, 1},        MXF_AVC_INTERLACED_FRAME_PICTURE,    54272000,  110, 0x10, 40},
+    {AVCI50_1080I,    {30000, 1001},  MXF_AVC_INTERLACED_FRAME_PICTURE,    53522112,  110, 0x10, 40},
+    {AVCI50_1080P,    {50, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  108544000,  110, 0x10, 42},
+    {AVCI50_1080P,    {25, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   54272000,  110, 0x10, 40},
+    {AVCI50_1080P,    {60000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  107044288,  110, 0x10, 42},
+    {AVCI50_1080P,    {30000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   53522112,  110, 0x10, 40},
+    {AVCI50_1080P,    {24000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   42817664,  110, 0x10, 40},
+    {AVCI50_720P,     {50, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   54067200,  110, 0x10, 32},
+    {AVCI50_720P,     {25, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   27033600,  110, 0x10, 32},
+    {AVCI50_720P,     {60000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   53276608,  110, 0x10, 32},
+    {AVCI50_720P,     {30000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   26638272,  110, 0x10, 32},
+    {AVCI50_720P,     {24000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   21310656,  110, 0x10, 32},
+    {AVCI200_1080I,   {25, 1},        MXF_AVC_INTERLACED_FRAME_PICTURE,   226918400,  122, 0x10, 41},
+    {AVCI200_1080I,   {30000, 1001},  MXF_AVC_INTERLACED_FRAME_PICTURE,   226118784,  122, 0x10, 41},
+    {AVCI200_1080P,   {50, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  453836800,  122, 0x10, 50},
+    {AVCI200_1080P,   {25, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  226918400,  122, 0x10, 41},
+    {AVCI200_1080P,   {60000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  452237632,  122, 0x10, 50},
+    {AVCI200_1080P,   {30000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  226118784,  122, 0x10, 41},
+    {AVCI200_1080P,   {24000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  180895040,  122, 0x10, 41},
+    {AVCI200_720P,    {50, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  226713600,  122, 0x10, 41},
+    {AVCI200_720P,    {25, 1},        MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  113356800,  122, 0x10, 41},
+    {AVCI200_720P,    {60000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  225873280,  122, 0x10, 41},
+    {AVCI200_720P,    {30000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,  112936640,  122, 0x10, 41},
+    {AVCI200_720P,    {24000, 1001},  MXF_AVC_PROGRESSIVE_FRAME_PICTURE,   90349312,  122, 0x10, 41},
+};
 
 
 EssenceType AVCIMXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor, mxfUL alternative_ec_label)
@@ -90,7 +160,7 @@ EssenceType AVCIMXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor
         return UNKNOWN_ESSENCE_TYPE;
     }
 
-    mxfRational sample_rate = file_descriptor->getSampleRate();
+    mxfRational sample_rate = normalize_rate(file_descriptor->getSampleRate());
 
     GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
     if (!pic_descriptor || !pic_descriptor->havePictureEssenceCoding())
@@ -98,7 +168,7 @@ EssenceType AVCIMXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor
 
     mxfUL pc_label = pic_descriptor->getPictureEssenceCoding();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (mxf_equals_ul_mod_regver(&pc_label, &SUPPORTED_ESSENCE[i].pc_label) &&
             SUPPORTED_ESSENCE[i].sample_rate == sample_rate)
         {
@@ -112,7 +182,7 @@ EssenceType AVCIMXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor
 bool AVCIMXFDescriptorHelper::IsSupported(EssenceType essence_type)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (essence_type == SUPPORTED_ESSENCE[i].essence_type)
             return true;
     }
@@ -120,11 +190,29 @@ bool AVCIMXFDescriptorHelper::IsSupported(EssenceType essence_type)
     return false;
 }
 
+uint32_t AVCIMXFDescriptorHelper::GetSampleSize(EssenceType essence_type, mxfRational sample_rate)
+{
+    size_t i;
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+        if (essence_type == SUPPORTED_ESSENCE[i].essence_type &&
+            sample_rate  == SUPPORTED_ESSENCE[i].sample_rate)
+        {
+            return SUPPORTED_ESSENCE[i].frame_size;
+        }
+    }
+
+    return 0;
+}
+
 AVCIMXFDescriptorHelper::AVCIMXFDescriptorHelper()
 : PictureMXFDescriptorHelper()
 {
     mEssenceIndex = 0;
     mEssenceType = SUPPORTED_ESSENCE[0].essence_type;
+    mIncludeHeader = false;
+    mIncludeHeaderSet = false;
+    mUseAVCSubDescriptor = false;
+    mAVCSubDescriptor = 0;
 }
 
 AVCIMXFDescriptorHelper::~AVCIMXFDescriptorHelper()
@@ -138,7 +226,7 @@ void AVCIMXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uint16
 
     PictureMXFDescriptorHelper::Initialize(file_descriptor, mxf_version, alternative_ec_label);
 
-    mxfRational sample_rate = file_descriptor->getSampleRate();
+    mxfRational sample_rate = normalize_rate(file_descriptor->getSampleRate());
 
     mxfUL ec_label = file_descriptor->getEssenceContainer();
     mFrameWrapped = (mxf_is_avc_ec(&ec_label, 1) || mxf_is_avc_ec(&alternative_ec_label, 1));
@@ -146,7 +234,7 @@ void AVCIMXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uint16
     GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
     mxfUL pc_label = pic_descriptor->getPictureEssenceCoding();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (mxf_equals_ul_mod_regver(&pc_label, &SUPPORTED_ESSENCE[i].pc_label) &&
             SUPPORTED_ESSENCE[i].sample_rate == sample_rate)
         {
@@ -154,6 +242,15 @@ void AVCIMXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uint16
             mEssenceType = SUPPORTED_ESSENCE[i].essence_type;
             mAvidResolutionId = SUPPORTED_ESSENCE[i].avid_resolution_id;
             break;
+        }
+    }
+
+    if (file_descriptor->haveSubDescriptors()) {
+        vector<SubDescriptor*> sub_descriptors = file_descriptor->getSubDescriptors();
+        for (i = 0; i < sub_descriptors.size(); i++) {
+            mAVCSubDescriptor = dynamic_cast<AVCSubDescriptor*>(sub_descriptors[i]);
+            if (mAVCSubDescriptor)
+                break;
         }
     }
 }
@@ -176,14 +273,34 @@ void AVCIMXFDescriptorHelper::SetSampleRate(mxfRational sample_rate)
     UpdateEssenceIndex();
 }
 
+void AVCIMXFDescriptorHelper::SetIncludeHeader(bool include_header)
+{
+    BMX_ASSERT(!mFileDescriptor);
+
+    mIncludeHeader = include_header;
+    mIncludeHeaderSet = true;
+}
+
+void AVCIMXFDescriptorHelper::SetUseAVCSubDescriptor(bool enable)
+{
+    BMX_ASSERT(!mFileDescriptor);
+
+    mUseAVCSubDescriptor = enable;
+}
+
 FileDescriptor* AVCIMXFDescriptorHelper::CreateFileDescriptor(mxfpp::HeaderMetadata *header_metadata)
 {
     UpdateEssenceIndex();
 
-    if (mFlavour == AVID_FLAVOUR)
+    if (mUseAVCSubDescriptor || (mFlavour & MXFDESC_AVID_FLAVOUR) || (mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR)) {
         mFileDescriptor = new CDCIEssenceDescriptor(header_metadata);
-    else
+        if (mUseAVCSubDescriptor || (mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR)) {
+            mAVCSubDescriptor = new AVCSubDescriptor(header_metadata);
+            mFileDescriptor->appendSubDescriptors(mAVCSubDescriptor);
+        }
+    } else {
         mFileDescriptor = new MPEGVideoDescriptor(header_metadata);
+    }
     UpdateFileDescriptor();
     return mFileDescriptor;
 }
@@ -192,20 +309,30 @@ void AVCIMXFDescriptorHelper::UpdateFileDescriptor()
 {
     PictureMXFDescriptorHelper::UpdateFileDescriptor();
 
+    // override the default Avid frame sample size set in PictureMXFDescriptorHelper
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR) && mIncludeHeaderSet) {
+        SetAvidFrameSampleSize(mIncludeHeader ? GetSampleSize() :
+                                                GetSampleWithoutHeaderSize());
+    }
+
     CDCIEssenceDescriptor *cdci_descriptor = dynamic_cast<CDCIEssenceDescriptor*>(mFileDescriptor);
     BMX_ASSERT(cdci_descriptor);
     MPEGVideoDescriptor *mpeg_descriptor = dynamic_cast<MPEGVideoDescriptor*>(mFileDescriptor);
-    BMX_ASSERT(mFlavour == AVID_FLAVOUR || mpeg_descriptor);
+    BMX_ASSERT(mUseAVCSubDescriptor || (mFlavour & MXFDESC_AVID_FLAVOUR) || (mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR) ||
+               mpeg_descriptor);
 
     cdci_descriptor->setPictureEssenceCoding(SUPPORTED_ESSENCE[mEssenceIndex].pc_label);
     switch (mEssenceType)
     {
+        case AVCI200_1080I:
+        case AVCI200_1080P:
         case AVCI100_1080I:
         case AVCI100_1080P:
         case AVCI50_1080I:
         case AVCI50_1080P:
             cdci_descriptor->setSignalStandard(MXF_SIGNAL_STANDARD_SMPTE274M);
             break;
+        case AVCI200_720P:
         case AVCI100_720P:
         case AVCI50_720P:
             cdci_descriptor->setSignalStandard(MXF_SIGNAL_STANDARD_SMPTE296M);
@@ -215,10 +342,18 @@ void AVCIMXFDescriptorHelper::UpdateFileDescriptor()
     }
     switch (mEssenceType)
     {
+        case AVCI200_1080I:
         case AVCI100_1080I:
         case AVCI50_1080I:
+            if ((mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR)) {
+                cdci_descriptor->setStoredF2Offset(0);
+                cdci_descriptor->setDisplayF2Offset(0);
+                cdci_descriptor->setFieldDominance(1);
+            }
             cdci_descriptor->setFrameLayout(MXF_SEPARATE_FIELDS);
             break;
+        case AVCI200_1080P:
+        case AVCI200_720P:
         case AVCI100_1080P:
         case AVCI100_720P:
         case AVCI50_1080P:
@@ -228,28 +363,40 @@ void AVCIMXFDescriptorHelper::UpdateFileDescriptor()
         default:
             BMX_ASSERT(false);
     }
-    SetColorSiting(0x00); // coSiting
+    SetColorSitingMod(0x00); // coSiting
     cdci_descriptor->setComponentDepth(10);
     cdci_descriptor->setBlackRefLevel(64);
     cdci_descriptor->setWhiteReflevel(940);
     cdci_descriptor->setColorRange(897);
-    SetCodingEquations(ITUR_BT709_CODING_EQ);
+    if ((mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR))
+        cdci_descriptor->setCaptureGamma(ITUR_BT709_TRANSFER_CH);
+    else
+        SetCodingEquationsMod(ITUR_BT709_CODING_EQ);
     switch (mEssenceType)
     {
+        case AVCI200_1080I:
         case AVCI100_1080I:
         case AVCI50_1080I:
             cdci_descriptor->setStoredWidth(1920);
-            cdci_descriptor->setStoredHeight(540);
+            if ((mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR))
+                cdci_descriptor->setStoredHeight(544);
+            else
+                cdci_descriptor->setStoredHeight(540);
             cdci_descriptor->appendVideoLineMap(21);
             cdci_descriptor->appendVideoLineMap(584);
             break;
+        case AVCI200_1080P:
         case AVCI100_1080P:
         case AVCI50_1080P:
             cdci_descriptor->setStoredWidth(1920);
-            cdci_descriptor->setStoredHeight(1080);
+            if ((mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR))
+                cdci_descriptor->setStoredHeight(1088);
+            else
+                cdci_descriptor->setStoredHeight(1080);
             cdci_descriptor->appendVideoLineMap(42);
             cdci_descriptor->appendVideoLineMap(0);
             break;
+        case AVCI200_720P:
         case AVCI100_720P:
         case AVCI50_720P:
             cdci_descriptor->setStoredWidth(1280);
@@ -260,12 +407,51 @@ void AVCIMXFDescriptorHelper::UpdateFileDescriptor()
         default:
             BMX_ASSERT(false);
     }
-    cdci_descriptor->setDisplayWidth(cdci_descriptor->getStoredWidth());
-    cdci_descriptor->setDisplayHeight(cdci_descriptor->getStoredHeight());
-    cdci_descriptor->setSampledWidth(cdci_descriptor->getStoredWidth());
-    cdci_descriptor->setSampledHeight(cdci_descriptor->getStoredHeight());
     switch (mEssenceType)
     {
+        case AVCI200_1080I:
+        case AVCI100_1080I:
+        case AVCI50_1080I:
+            cdci_descriptor->setDisplayWidth(cdci_descriptor->getStoredWidth());
+            cdci_descriptor->setDisplayHeight(540);
+            cdci_descriptor->setSampledWidth(cdci_descriptor->getStoredWidth());
+            cdci_descriptor->setSampledHeight(540);
+            break;
+        case AVCI200_1080P:
+        case AVCI100_1080P:
+        case AVCI50_1080P:
+            cdci_descriptor->setDisplayWidth(cdci_descriptor->getStoredWidth());
+            cdci_descriptor->setDisplayHeight(1080);
+            cdci_descriptor->setSampledWidth(cdci_descriptor->getStoredWidth());
+            cdci_descriptor->setSampledHeight(1080);
+            break;
+        case AVCI200_720P:
+        case AVCI100_720P:
+        case AVCI50_720P:
+            cdci_descriptor->setDisplayWidth(cdci_descriptor->getStoredWidth());
+            cdci_descriptor->setDisplayHeight(cdci_descriptor->getStoredHeight());
+            cdci_descriptor->setSampledWidth(cdci_descriptor->getStoredWidth());
+            cdci_descriptor->setSampledHeight(cdci_descriptor->getStoredHeight());
+            break;
+        default:
+            BMX_ASSERT(false);
+    }
+    if ((mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR) || (mFlavour & MXFDESC_AVID_FLAVOUR)) {
+        cdci_descriptor->setSampledXOffset(0);
+        cdci_descriptor->setSampledYOffset(0);
+        cdci_descriptor->setDisplayXOffset(0);
+        cdci_descriptor->setDisplayYOffset(0);
+        if ((mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR)) {
+            cdci_descriptor->setImageStartOffset(0);
+            cdci_descriptor->setImageEndOffset(0);
+            cdci_descriptor->setPaddingBits(0);
+        }
+    }
+    switch (mEssenceType)
+    {
+        case AVCI200_1080I:
+        case AVCI200_1080P:
+        case AVCI200_720P:
         case AVCI100_1080I:
         case AVCI100_1080P:
         case AVCI100_720P:
@@ -280,6 +466,31 @@ void AVCIMXFDescriptorHelper::UpdateFileDescriptor()
             break;
         default:
             BMX_ASSERT(false);
+    }
+
+    if (mAVCSubDescriptor) {
+        BMX_ASSERT(BMX_ARRAY_SIZE(SUPPORTED_ESSENCE) == BMX_ARRAY_SIZE(AVC_DESCRIPTOR_INFO));
+        BMX_ASSERT(mEssenceIndex < BMX_ARRAY_SIZE(AVC_DESCRIPTOR_INFO));
+        const AVCDescriptorInfo *avc_info = &AVC_DESCRIPTOR_INFO[mEssenceIndex];
+
+        // TODO: should be extracting and checking this information from the bitstream
+        mAVCSubDescriptor->setAVCDecodingDelay(0);
+        mAVCSubDescriptor->setAVCCodedContentKind(avc_info->coded_content_kind);
+        mAVCSubDescriptor->setAVCClosedGOPIndicator(true);
+        mAVCSubDescriptor->setAVCIdenticalGOPIndicator(true);
+        mAVCSubDescriptor->setAVCMaximumGOPSize(1);
+        mAVCSubDescriptor->setAVCMaximumBPictureCount(0);
+        mAVCSubDescriptor->setAVCMaximumBitrate(avc_info->bit_rate);
+        mAVCSubDescriptor->setAVCAverageBitrate(avc_info->bit_rate);
+        mAVCSubDescriptor->setAVCProfile(avc_info->profile);
+        mAVCSubDescriptor->setAVCProfileConstraint(avc_info->profile_constraint);
+        mAVCSubDescriptor->setAVCLevel(avc_info->level);
+
+        // SPS and PPS flags are (also) set in the writer helper
+        if ((mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR)) {
+           mAVCSubDescriptor->setAVCSequenceParameterSetFlag(0xa0);    // constant and present in every access unit
+           mAVCSubDescriptor->setAVCPictureParameterSetFlag(0xa0);     // constant and present in every access unit
+        }
     }
 }
 
@@ -296,15 +507,15 @@ uint32_t AVCIMXFDescriptorHelper::GetSampleWithoutHeaderSize()
 mxfUL AVCIMXFDescriptorHelper::ChooseEssenceContainerUL() const
 {
     if (mFrameWrapped)
-        return MXF_EC_L(AVCIFrameWrapped);
+        return MXF_EC_L(AVCFrameWrapped);
     else
-        return MXF_EC_L(AVCIClipWrapped);
+        return MXF_EC_L(AVCClipWrapped);
 }
 
 void AVCIMXFDescriptorHelper::UpdateEssenceIndex()
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (SUPPORTED_ESSENCE[i].essence_type == mEssenceType &&
             SUPPORTED_ESSENCE[i].sample_rate == mSampleRate)
         {
@@ -313,6 +524,6 @@ void AVCIMXFDescriptorHelper::UpdateEssenceIndex()
             break;
         }
     }
-    BMX_CHECK(i < ARRAY_SIZE(SUPPORTED_ESSENCE));
+    BMX_CHECK(i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE));
 }
 

@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_APP_INFO_H__
-#define __BMX_MXF_APP_INFO_H__
+#ifndef BMX_MXF_APP_INFO_H_
+#define BMX_MXF_APP_INFO_H_
 
 
 #include <libMXF++/MXF.h>
@@ -44,12 +44,14 @@ namespace bmx
 class MXFAPPInfo
 {
 public:
-    static void RegisterExtensions(mxfpp::DataModel *data_model);
+    static void RegisterExtensions(mxfpp::HeaderMetadata *header_metadata);
     static bool IsAPP(mxfpp::HeaderMetadata *header_metadata);
 
 public:
     MXFAPPInfo();
     ~MXFAPPInfo();
+
+    bool CheckIssues(mxfpp::HeaderMetadata *header_metadata);
 
     bool ReadAll(mxfpp::HeaderMetadata *header_metadata);
 

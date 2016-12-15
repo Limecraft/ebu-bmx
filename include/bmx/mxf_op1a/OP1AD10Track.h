@@ -29,11 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_OP1A_D10_TRACK_H__
-#define __BMX_OP1A_D10_TRACK_H__
+#ifndef BMX_OP1A_D10_TRACK_H_
+#define BMX_OP1A_D10_TRACK_H_
 
 #include <bmx/mxf_op1a/OP1APictureTrack.h>
 #include <bmx/mxf_helper/D10MXFDescriptorHelper.h>
+#include <bmx/writer_helper/D10WriterHelper.h>
 
 
 
@@ -48,16 +49,13 @@ public:
                  mxfRational frame_rate, EssenceType essence_type);
     virtual ~OP1AD10Track();
 
-    void SetSampleSize(uint32_t size, bool remove_excess_padding);
-
 protected:
-    virtual void PrepareWrite(uint8_t picture_track_count, uint8_t sound_track_count);
+    virtual void PrepareWrite(uint8_t track_count);
     virtual void WriteSamplesInt(const unsigned char *data, uint32_t size, uint32_t num_samples);
 
 private:
     D10MXFDescriptorHelper *mD10DescriptorHelper;
-    uint32_t mInputSampleSize;
-    bool mRemoveExcessPadding;
+    D10WriterHelper mWriterHelper;
 };
 
 

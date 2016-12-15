@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_BYTE_ARRAY_H__
-#define __BMX_BYTE_ARRAY_H__
+#ifndef BMX_BYTE_ARRAY_H_
+#define BMX_BYTE_ARRAY_H_
 
 
 #include <bmx/BMXTypes.h>
@@ -45,12 +45,14 @@ class ByteArray
 public:
     ByteArray();
     ByteArray(uint32_t size);
+    ByteArray(const ByteArray &from);
     ~ByteArray();
 
     void SetAllocBlockSize(uint32_t block_size);
 
     unsigned char* GetBytes() const;
     uint32_t GetSize() const;
+    void TakeBytes();
 
     void Append(const unsigned char *bytes, uint32_t size);
     unsigned char* GetBytesAvailable() const;

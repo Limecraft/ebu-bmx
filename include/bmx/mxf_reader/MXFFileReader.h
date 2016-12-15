@@ -29,13 +29,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_FILE_READER_H__
-#define __BMX_MXF_FILE_READER_H__
+#ifndef BMX_MXF_FILE_READER_H_
+#define BMX_MXF_FILE_READER_H_
 
 
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 
 #include <libMXF++/MXF.h>
 
@@ -60,7 +61,9 @@ public:
     friend class IndexTableHelper;
     friend class EssenceChunkHelper;
     friend class MXFFileTrackReader;
+    friend class MXFTextObject;
     friend class FrameMetadataReader;
+    friend class EssenceReaderBuffer;
 
 public:
     typedef enum
@@ -86,16 +89,28 @@ public:
 
     void SetPackageResolver(MXFPackageResolver *resolver, bool take_ownership);
     void SetFileFactory(MXFFileFactory *factory, bool take_ownership);
+    virtual void SetEmptyFrames(bool enable);
+    void SetST436ManifestFrameCount(uint32_t count);     // default: 2 frames used to extract manifest
+    virtual void SetFileIndex(MXFFileIndex *file_index, bool take_ownership);
+    virtual void SetMCALabelIndex(MXFMCALabelIndex *label_index, bool take_ownership);
 
     OpenResult Open(std::string filename);
     OpenResult Open(mxfpp::File *file, std::string filename);
+    OpenResult Open(mxfpp::File *file, const URI &abs_uri, const URI &rel_uri, const std::string &filename);
 
-    mxfpp::DataModel* GetDataModel() const         { return mDataModel; }
-    MXFPackageResolver* GetPackageResolver() const { return mPackageResolver; }
-    MXFFileFactory* GetFileFactory() const         { return mFileFactory; }
+    mxfpp::DataModel* GetDataModel() const            { return mDataModel; }
+    mxfpp::HeaderMetadata* GetHeaderMetadata() const  { return mHeaderMetadata; }
+    MXFPackageResolver* GetPackageResolver() const    { return mPackageResolver; }
+    MXFFileFactory* GetFileFactory() const            { return mFileFactory; }
 
 public:
-    virtual void GetAvailableReadLimits(int64_t *start_position, int64_t *duration) const;
+    virtual MXFFileReader* GetFileReader(size_t file_id);
+    virtual std::vector<size_t> GetFileIds(bool internal_ess_only) const;
+
+    virtual bool IsComplete() const;
+    virtual bool IsSeekable() const;
+
+    virtual void GetReadLimits(bool limit_to_available, int64_t *start_position, int64_t *duration) const;
     virtual void SetReadLimits();
     virtual void SetReadLimits(int64_t start_position, int64_t duration, bool seek_start_position);
     virtual int64_t GetReadStartPosition() const { return mReadStartPosition; }
@@ -113,11 +128,16 @@ public:
     virtual bool HaveFixedLeadFillerOffset() const;
     virtual int64_t GetFixedLeadFillerOffset() const;
 
-    mxfpp::HeaderMetadata* GetHeaderMetadata() const { return mHeaderMetadata; }
-    uint16_t GetMXFVersion() const                   { return mMXFVersion; }
+    uint16_t GetMXFVersion() const    { return mMXFVersion; }
+    mxfUL GetOPLabel() const          { return mOPLabel; }
+    bool HaveInternalEssence() const  { return !mInternalTrackReaders.empty(); }
+    bool IsClipWrapped()              { return mWrappingType == MXF_CLIP_WRAPPED; }
+    bool IsFrameWrapped()             { return mWrappingType == MXF_FRAME_WRAPPED; }
 
-    std::string GetFilename() const { return mFilename; }
-    const URI& GetAbsoluteURI() const { return mAbsoluteURI; }
+    size_t GetFileId() const        { return mFileId; }
+    std::string GetFilename() const { return GetFileIndex()->GetFilename(mFileId); }
+    URI GetRelativeURI() const      { return GetFileIndex()->GetRelativeURI(mFileId); }
+    URI GetAbsoluteURI() const      { return GetFileIndex()->GetAbsoluteURI(mFileId); }
 
 public:
     virtual size_t GetNumTrackReaders() const { return mTrackReaders.size(); }
@@ -129,8 +149,14 @@ public:
     virtual int16_t GetTrackRollout(size_t track_index, int64_t clip_position, int16_t clip_rollout) const;
 
 public:
-    virtual void SetNextFramePosition(int64_t position);
+    virtual size_t GetNumTextObjects() const { return mTextObjects.size(); }
+    virtual MXFTextObject* GetTextObject(size_t index) const;
+
+public:
+    virtual void SetNextFramePosition(Rational edit_rate, int64_t position);
     virtual void SetNextFrameTrackPositions();
+
+    virtual void SetTemporaryFrameBuffer(bool enable);
 
 private:
     typedef enum
@@ -143,15 +169,14 @@ private:
 private:
     void ProcessMetadata(mxfpp::Partition *partition);
 
-    MXFTrackReader* CreateInternalTrackReader(mxfpp::Partition *partition, mxfpp::MaterialPackage *material_package,
+    MXFTrackReader* CreateInternalTrackReader(mxfpp::Partition *partition,
                                               mxfpp::Track *mp_track, mxfpp::SourceClip *mp_source_clip,
-                                              bool is_picture, const ResolvedPackage *resolved_package);
+                                              MXFDataDefEnum data_def, const ResolvedPackage *resolved_package);
     MXFTrackReader* GetExternalTrackReader(mxfpp::SourceClip *mp_source_clip,
                                            mxfpp::SourcePackage *file_source_package);
 
-    void GetStartTimecodes(mxfpp::Preface *preface, mxfpp::MaterialPackage *material_package,
-                           mxfpp::Track *infile_mp_track);
-    bool GetStartTimecode(mxfpp::GenericPackage *package, mxfpp::Track *track, int64_t offset, Timecode *timecode);
+    void GetStartTimecodes(mxfpp::Preface *preface, mxfpp::Track *infile_mp_track);
+    bool GetStartTimecode(mxfpp::GenericPackage *package, mxfpp::Track *ref_track, int64_t offset, Timecode *timecode);
     bool GetReferencedPackage(mxfpp::Preface *preface, mxfpp::Track *track, int64_t offset_in, PackageType package_type,
                               mxfpp::GenericPackage **ref_package_out, mxfpp::Track **ref_track_out,
                               int64_t *ref_offset_out);
@@ -159,9 +184,12 @@ private:
     void ProcessDescriptor(mxfpp::FileDescriptor *file_descriptor, MXFTrackInfo *track_info);
     void ProcessPictureDescriptor(mxfpp::FileDescriptor *file_descriptor, MXFPictureTrackInfo *picture_track_info);
     void ProcessSoundDescriptor(mxfpp::FileDescriptor *file_descriptor, MXFSoundTrackInfo *sound_track_info);
+    void ProcessDataDescriptor(mxfpp::FileDescriptor *file_descriptor, MXFDataTrackInfo *data_track_info);
 
-    bool IsClipWrapped() { return mIsClipWrapped; }
-    bool IsFrameWrapped() { return !mIsClipWrapped; }
+    void IndexMCALabels(mxfpp::GenericDescriptor *descriptor);
+    void ProcessMCALabels(mxfpp::FileDescriptor *file_desc, MXFSoundTrackInfo *sound_track_info);
+
+    mxfpp::FileDescriptor* GetFileDescriptor(mxfpp::GenericDescriptor *descriptor, uint32_t fsp_track_id);
 
     size_t GetNumInternalTrackReaders() const { return mInternalTrackReaders.size(); }
     MXFTrackReader* GetInternalTrackReader(size_t index) const;
@@ -179,11 +207,15 @@ private:
 
     bool InternalIsEnabled() const;
 
-    void ExtractInfoFromFirstFrame();
+    void CheckRequireFrameInfo();
+    void ExtractFrameInfo();
+
+    void StartRead();
+    void CompleteRead();
+    void AbortRead();
 
 private:
-    std::string mFilename;
-    URI mAbsoluteURI;
+    size_t mFileId;
     mxfpp::File *mFile;
 
     MXFPackageResolver *mPackageResolver;
@@ -191,18 +223,23 @@ private:
     MXFFileFactory *mFileFactory;
     bool mOwnFilefactory;
 
+    bool mEmptyFrames;
+    bool mEmptyFramesSet;
+
     mxfpp::DataModel *mDataModel;
     mxfpp::HeaderMetadata *mHeaderMetadata;
 
     uint16_t mMXFVersion;
-    bool mIsClipWrapped;
+    mxfUL mOPLabel;
+    MXFEssenceWrappingType mGuessedWrappingType;
+    MXFEssenceWrappingType mWrappingType;
     uint32_t mBodySID;
     uint32_t mIndexSID;
 
-    int64_t mOrigin;
-
     int64_t mReadStartPosition;
     int64_t mReadDuration;
+
+    int64_t mFileOrigin;
 
     std::vector<MXFTrackReader*> mTrackReaders;
     std::vector<MXFTrackReader*> mInternalTrackReaders;
@@ -212,7 +249,15 @@ private:
     std::vector<int64_t> mExternalSampleSequenceSizes;
     std::vector<MXFTrackReader*> mExternalTrackReaders;
 
+    std::vector<MXFTextObject*> mTextObjects; // internal and external text objects
+    std::vector<MXFTextObject*> mInternalTextObjects;
+
     EssenceReader *mEssenceReader;
+
+    uint32_t mRequireFrameInfoCount;
+    uint32_t mST436ManifestCount;
+
+    std::set<mxfpp::SourcePackage*> mMCALabelIndexedPackages;
 };
 
 

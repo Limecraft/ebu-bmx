@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_OP1A_MPEG2LG_TRACK_H__
-#define __BMX_OP1A_MPEG2LG_TRACK_H__
+#ifndef BMX_OP1A_MPEG2LG_TRACK_H_
+#define BMX_OP1A_MPEG2LG_TRACK_H_
 
 #include <bmx/mxf_op1a/OP1APictureTrack.h>
 #include <bmx/writer_helper/MPEG2LGWriterHelper.h>
@@ -50,7 +50,7 @@ public:
     virtual ~OP1AMPEG2LGTrack();
 
 protected:
-    virtual void PrepareWrite(uint8_t picture_track_count, uint8_t sound_track_count);
+    virtual void PrepareWrite(uint8_t track_count);
     virtual void WriteSamplesInt(const unsigned char *data, uint32_t size, uint32_t num_samples);
     virtual void CompleteWrite();
 

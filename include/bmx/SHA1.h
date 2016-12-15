@@ -29,8 +29,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_SHA1_H__
-#define __BMX_SHA1_H__
+#ifndef BMX_SHA1_H_
+#define BMX_SHA1_H_
+
+#include <cstdio>
 
 #include <string>
 
@@ -57,6 +59,7 @@ void sha1_final(unsigned char digest[20], SHA1Context *context);
 std::string sha1_digest_str(const unsigned char digest[20]);
 
 std::string sha1_calc_file(std::string filename);
+std::string sha1_calc_file(FILE *file);
 
 
 };

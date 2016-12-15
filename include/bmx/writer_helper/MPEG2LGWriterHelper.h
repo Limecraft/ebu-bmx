@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MPEG2LG_WRITER_HELPER_H__
-#define __BMX_MPEG2LG_WRITER_HELPER_H__
+#ifndef BMX_MPEG2LG_WRITER_HELPER_H_
+#define BMX_MPEG2LG_WRITER_HELPER_H_
 
 #include <vector>
 
@@ -76,7 +76,6 @@ public:
 
     bool HaveGOPHeader() const              { return mHaveGOPHeader; }
     bool GetSingleSequence() const          { return mSingleSequence; }
-    int16_t GetBPictureCount() const        { return mBPictureCount; }
     bool GetConstantBFrames() const         { return mConstantBFrames; }
     bool GetLowDelay() const                { return mLowDelay; }
     bool GetClosedGOP() const               { return mClosedGOP; }
@@ -112,7 +111,7 @@ private:
 
     bool mHaveGOPHeader;
     bool mSingleSequence;
-    int16_t mBPictureCount;
+    uint16_t mBPictureCount;
     bool mConstantBFrames;
     bool mLowDelay;
     bool mClosedGOP;

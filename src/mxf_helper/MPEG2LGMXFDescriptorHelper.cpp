@@ -62,9 +62,11 @@ static const SupportedEssence SUPPORTED_ESSENCE[] =
     {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_1080I,     {25, 1},        1920,  4074,  MXF_SEPARATE_FIELDS},
     {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_1080I,     {30000, 1001},  1920,  4073,  MXF_SEPARATE_FIELDS},
     {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_1080P,     {24000, 1001},  1920,  4077,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_1080P,     {24, 1},        1920,     0,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_1080P,     {25, 1},        1920,  4076,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_1080P,     {30000, 1001},  1920,  4075,  MXF_FULL_FRAME},
-    {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_720P,      {24000, 1001},  1280,  4040,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_720P,      {24000, 1001},  1280,     0,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_720P,      {24, 1},        1280,     0,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_720P,      {25, 1},        1280,  4091,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_720P,      {30000, 1001},  1280,  4092,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_422P_HL_LONGGOP),  MPEG2LG_422P_HL_720P,      {50, 1},        1280,  4079,  MXF_FULL_FRAME},
@@ -72,22 +74,26 @@ static const SupportedEssence SUPPORTED_ESSENCE[] =
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1920_1080I,  {25, 1},        1920,  4081,  MXF_SEPARATE_FIELDS},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1920_1080I,  {30000, 1001},  1920,  4080,  MXF_SEPARATE_FIELDS},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1920_1080P,  {24000, 1001},  1920,  4084,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1920_1080P,  {24, 1},        1920,     0,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1920_1080P,  {25, 1},        1920,  4083,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1920_1080P,  {30000, 1001},  1920,  4082,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1440_1080I,  {25, 1},        1440,  4043,  MXF_SEPARATE_FIELDS},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1440_1080I,  {30000, 1001},  1440,  4044,  MXF_SEPARATE_FIELDS},
-    {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1440_1080P,  {24000, 1001},  1440,  4045,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1440_1080P,  {24000, 1001},  1440,     0,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1440_1080P,  {24, 1},        1440,  4045,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1440_1080P,  {25, 1},        1440,  4072,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_1440_1080P,  {30000, 1001},  1440,  4090,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_720P,        {24000, 1001},  1280,  4087,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_720P,        {24, 1},        1280,     0,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_720P,        {25, 1},        1280,  4089,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_720P,        {30000, 1001},  1280,  4088,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_720P,        {50, 1},        1280,  4086,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_HL_LONGGOP),    MPEG2LG_MP_HL_720P,        {60000, 1001},  1280,  4085,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_H14_LONGGOP),   MPEG2LG_MP_H14_1080I,      {25, 1},        1440,  4003,  MXF_SEPARATE_FIELDS},
     {MXF_CMDEF_L(MPEG2_MP_H14_LONGGOP),   MPEG2LG_MP_H14_1080I,      {30000, 1001},  1440,  4004,  MXF_SEPARATE_FIELDS},
-    {MXF_CMDEF_L(MPEG2_MP_H14_LONGGOP),   MPEG2LG_MP_H14_1080P,      {24000, 1001},  1440,  4027,  MXF_FULL_FRAME},
-    {MXF_CMDEF_L(MPEG2_MP_H14_LONGGOP),   MPEG2LG_MP_H14_1080P,      {25, 1},        1440,     0,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_MP_H14_LONGGOP),   MPEG2LG_MP_H14_1080P,      {24000, 1001},  1440,     0,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_MP_H14_LONGGOP),   MPEG2LG_MP_H14_1080P,      {24, 1},        1440,     0,  MXF_FULL_FRAME},
+    {MXF_CMDEF_L(MPEG2_MP_H14_LONGGOP),   MPEG2LG_MP_H14_1080P,      {25, 1},        1440,  4071,  MXF_FULL_FRAME},
     {MXF_CMDEF_L(MPEG2_MP_H14_LONGGOP),   MPEG2LG_MP_H14_1080P,      {30000, 1001},  1440,     0,  MXF_FULL_FRAME},
 };
 
@@ -105,7 +111,7 @@ EssenceType MPEG2LGMXFDescriptorHelper::IsSupported(FileDescriptor *file_descrip
 bool MPEG2LGMXFDescriptorHelper::IsSupported(EssenceType essence_type)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (essence_type == SUPPORTED_ESSENCE[i].essence_type)
             return true;
     }
@@ -126,7 +132,7 @@ size_t MPEG2LGMXFDescriptorHelper::GetEssenceIndex(FileDescriptor *file_descript
         return (size_t)(-1);
     }
 
-    mxfRational sample_rate = file_descriptor->getSampleRate();
+    mxfRational sample_rate = normalize_rate(file_descriptor->getSampleRate());
 
     GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
     if (!pic_descriptor || !pic_descriptor->havePictureEssenceCoding())
@@ -142,7 +148,7 @@ size_t MPEG2LGMXFDescriptorHelper::GetEssenceIndex(FileDescriptor *file_descript
 
     mxfUL pc_label = pic_descriptor->getPictureEssenceCoding();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (mxf_equals_ul_mod_regver(&pc_label, &SUPPORTED_ESSENCE[i].pc_label) &&
             SUPPORTED_ESSENCE[i].sample_rate == sample_rate &&
             SUPPORTED_ESSENCE[i].stored_width == stored_width &&
@@ -212,7 +218,7 @@ FileDescriptor* MPEG2LGMXFDescriptorHelper::CreateFileDescriptor(mxfpp::HeaderMe
     UpdateEssenceIndex();
 
     // create CDCI descriptor for Avid files
-    if (mFlavour == AVID_FLAVOUR)
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR))
         mFileDescriptor = new CDCIEssenceDescriptor(header_metadata);
     else
         mFileDescriptor = new MPEGVideoDescriptor(header_metadata);
@@ -227,18 +233,20 @@ void MPEG2LGMXFDescriptorHelper::UpdateFileDescriptor()
     CDCIEssenceDescriptor *cdci_descriptor = dynamic_cast<CDCIEssenceDescriptor*>(mFileDescriptor);
     BMX_ASSERT(cdci_descriptor);
     MPEGVideoDescriptor *mpeg_descriptor = dynamic_cast<MPEGVideoDescriptor*>(mFileDescriptor);
-    BMX_ASSERT(mFlavour == AVID_FLAVOUR || mpeg_descriptor);
+    BMX_ASSERT((mFlavour & MXFDESC_AVID_FLAVOUR) || mpeg_descriptor);
 
     cdci_descriptor->setPictureEssenceCoding(SUPPORTED_ESSENCE[mEssenceIndex].pc_label);
-    SetCodingEquations(ITUR_BT709_CODING_EQ);
-    if (mEssenceType == MPEG2LG_422P_HL_720P ||
-        mEssenceType == MPEG2LG_MP_HL_720P)
-    {
-        cdci_descriptor->setSignalStandard(MXF_SIGNAL_STANDARD_SMPTE296M);
-    }
-    else
-    {
-        cdci_descriptor->setSignalStandard(MXF_SIGNAL_STANDARD_SMPTE274M);
+    SetCodingEquationsMod(ITUR_BT709_CODING_EQ);
+    if (!(mFlavour & MXFDESC_AVID_FLAVOUR)) {
+        if (mEssenceType == MPEG2LG_422P_HL_720P ||
+            mEssenceType == MPEG2LG_MP_HL_720P)
+        {
+            cdci_descriptor->setSignalStandard(MXF_SIGNAL_STANDARD_SMPTE296M);
+        }
+        else
+        {
+            cdci_descriptor->setSignalStandard(MXF_SIGNAL_STANDARD_SMPTE274M);
+        }
     }
     cdci_descriptor->setFrameLayout(SUPPORTED_ESSENCE[mEssenceIndex].frame_layout);
     if (mEssenceType == MPEG2LG_422P_HL_1080I ||
@@ -246,12 +254,15 @@ void MPEG2LGMXFDescriptorHelper::UpdateFileDescriptor()
         mEssenceType == MPEG2LG_422P_HL_720P)
     {
         // 4:2:2
-        SetColorSiting(MXF_COLOR_SITING_COSITING);
+        if ((mFlavour & MXFDESC_AVID_FLAVOUR))
+            SetColorSitingMod(MXF_COLOR_SITING_REC601);
+        else
+            SetColorSitingMod(MXF_COLOR_SITING_COSITING);
     }
     else
     {
         // 4:2:0
-        SetColorSiting(MXF_COLOR_SITING_VERT_MIDPOINT);
+        SetColorSitingMod(MXF_COLOR_SITING_VERT_MIDPOINT);
     }
     switch (mEssenceType)
     {
@@ -314,7 +325,8 @@ void MPEG2LGMXFDescriptorHelper::UpdateFileDescriptor()
             BMX_ASSERT(false);
             break;
     }
-    cdci_descriptor->setCaptureGamma(ITUR_BT709_TRANSFER_CH);
+    if (!(mFlavour & MXFDESC_AVID_FLAVOUR))
+        cdci_descriptor->setCaptureGamma(ITUR_BT709_TRANSFER_CH);
     cdci_descriptor->setComponentDepth(8);
     if (mEssenceType == MPEG2LG_422P_HL_1080I ||
         mEssenceType == MPEG2LG_422P_HL_1080P ||
@@ -334,10 +346,47 @@ void MPEG2LGMXFDescriptorHelper::UpdateFileDescriptor()
     cdci_descriptor->setWhiteReflevel(235);
     cdci_descriptor->setColorRange(225);
 
+    if ((mFlavour & MXFDESC_RDD9_FLAVOUR)) {
+        if (SUPPORTED_ESSENCE[mEssenceIndex].frame_layout == MXF_SEPARATE_FIELDS) {
+            cdci_descriptor->setStoredF2Offset(0);
+            cdci_descriptor->setDisplayF2Offset(0);
+            cdci_descriptor->setFieldDominance(1);
+        }
+        cdci_descriptor->setSampledXOffset(0);
+        cdci_descriptor->setSampledYOffset(0);
+        cdci_descriptor->setDisplayXOffset(0);
+        cdci_descriptor->setDisplayYOffset(0);
+        cdci_descriptor->setImageStartOffset(0);
+        cdci_descriptor->setImageEndOffset(0);
+        cdci_descriptor->setPaddingBits(0);
+
+        if ((mFlavour & MXFDESC_RDD9_AS10_FLAVOUR)) {
+            // These properties are set for AS-10 to avoid differences with Sony RDD-9 files.
+            // ImageAlignmentOffset should be 1 (the ST 377 default) but Sony RDD-9 files
+            // set the value to 0
+            cdci_descriptor->setImageAlignmentOffset(0);
+            cdci_descriptor->setReversedByteOrder(false);
+            if (SUPPORTED_ESSENCE[mEssenceIndex].frame_layout != MXF_SEPARATE_FIELDS) {
+                // These properties should not be present according to ST 377 for MXF_FULL_FRAME and
+                // MXF_SEGMENTED_FRAME. However, Sony RDD-9 files set the values and so the same is done
+                // here for AS-10 to avoid differences
+                cdci_descriptor->setStoredF2Offset(0);
+                cdci_descriptor->setDisplayF2Offset(0);
+                cdci_descriptor->setFieldDominance(1);
+            }
+        }
+    } else if ((mFlavour & MXFDESC_AVID_FLAVOUR)) {
+        cdci_descriptor->setSampledXOffset(0);
+        cdci_descriptor->setSampledYOffset(0);
+        cdci_descriptor->setDisplayXOffset(0);
+        cdci_descriptor->setDisplayYOffset(0);
+        cdci_descriptor->setImageAlignmentOffset(1);
+    }
+
     if (mpeg_descriptor) {
         mpeg_descriptor->setSingleSequence(true);
         mpeg_descriptor->setCodedContentType(SUPPORTED_ESSENCE[mEssenceIndex].frame_layout == MXF_FULL_FRAME ? 1 : 2);
-        mpeg_descriptor->setBPictureCount(2);
+        mpeg_descriptor->setMaxBPictureCount(2);
         switch (mEssenceType)
         {
             case MPEG2LG_422P_HL_1080I:
@@ -360,12 +409,39 @@ void MPEG2LGMXFDescriptorHelper::UpdateFileDescriptor()
                 BMX_ASSERT(false);
                 break;
         }
+
+        if ((mFlavour & MXFDESC_RDD9_FLAVOUR)) {
+            mpeg_descriptor->setLowDelay(false);
+            switch (mEssenceType)
+            {
+                case MPEG2LG_422P_HL_720P:
+                case MPEG2LG_MP_HL_720P:
+                    mpeg_descriptor->setMaxGOP(12);
+                    break;
+                case MPEG2LG_422P_HL_1080I:
+                case MPEG2LG_422P_HL_1080P:
+                case MPEG2LG_MP_HL_1920_1080I:
+                case MPEG2LG_MP_HL_1920_1080P:
+                case MPEG2LG_MP_HL_1440_1080I:
+                case MPEG2LG_MP_HL_1440_1080P:
+                case MPEG2LG_MP_H14_1080I:
+                case MPEG2LG_MP_H14_1080P:
+                default:
+                    mpeg_descriptor->setMaxGOP(15);
+                    break;
+            }
+        }
     }
+}
+
+MXFFrameLayout MPEG2LGMXFDescriptorHelper::GetFrameLayout() const
+{
+    return SUPPORTED_ESSENCE[mEssenceIndex].frame_layout;
 }
 
 mxfUL MPEG2LGMXFDescriptorHelper::ChooseEssenceContainerUL() const
 {
-    if (mFlavour == AVID_FLAVOUR) {
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR)) {
         BMX_ASSERT(!mFrameWrapped);
         return MXF_EC_L(AvidMPEGClipWrapped);
     } else {
@@ -379,14 +455,14 @@ mxfUL MPEG2LGMXFDescriptorHelper::ChooseEssenceContainerUL() const
 void MPEG2LGMXFDescriptorHelper::UpdateEssenceIndex()
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (SUPPORTED_ESSENCE[i].essence_type == mEssenceType &&
             SUPPORTED_ESSENCE[i].sample_rate == mSampleRate) {
             mEssenceIndex = i;
             break;
         }
     }
-    BMX_CHECK(i < ARRAY_SIZE(SUPPORTED_ESSENCE));
+    BMX_CHECK(i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE));
     mAvidResolutionId = SUPPORTED_ESSENCE[i].avid_resolution_id;
 }
 

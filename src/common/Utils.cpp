@@ -57,26 +57,53 @@
 
 #include <bmx/Utils.h>
 #include <bmx/URI.h>
+#include <bmx/MD5.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
 using namespace std;
 
 
-#define MAX_INT32   2147483647
+#define MAX_INT32               2147483647
+
+#define XML_PROLOG_MAX_SIZE     512
 
 
 typedef struct
 {
     mxfRational lower_edit_rate;
     mxfRational higher_edit_rate;
-    uint32_t sample_sequence[11];
+    uint32_t sample_sequence[6];
 } SampleSequence;
 
 static const SampleSequence SAMPLE_SEQUENCES[] =
 {
-    {{30000, 1001}, {48000,1}, {1602, 1601, 1602, 1601, 1602, 0,   0,   0,   0,   0,   0}},
-    {{60000, 1001}, {48000,1}, {801,  801,  801,  800,  801,  801, 801, 800, 801, 801, 0}},
+    {{30000, 1001}, {48000,1}, {1602, 1601, 1602, 1601, 1602, 0}},
+    {{60000, 1001}, {48000,1}, { 801,  801,  800,  801,  801, 0}},
+};
+
+
+typedef struct
+{
+    uint8_t cp_rate_id;
+    int32_t frame_rate_per_sec;
+} ContentPackageRate;
+
+static const ContentPackageRate CONTENT_PACKAGE_RATES[] =
+{
+    { 1, 24}, { 2,  25}, { 3,  30},
+    { 4, 48}, { 5,  50}, { 6,  60},
+    { 7, 72}, { 8,  75}, { 9,  90},
+    {10, 96}, {11, 100}, {12, 120}
+};
+
+
+static const string BMX_NAMESPACE = "http://bbc.co.uk/rd/bmx";
+
+
+namespace bmx
+{
+extern bool BMX_REGRESSION_TEST;
 };
 
 
@@ -87,6 +114,136 @@ static int32_t gcd(int32_t a, int32_t b)
         return a;
     else
         return gcd(b, a % b);
+}
+
+static void get_xml_prolog_encoding(const char *data, size_t size, bmx::TextEncoding *encoding,
+                                    bool *prolog_present, bool *encoding_present)
+{
+#define XML_SPACE(c)    ((c) == 0x20 || (c) == 0x09 || (c) == 0x0d || (c) == 0x0a)
+
+    *prolog_present   = false;
+    *encoding_present = false;
+
+    if (size < 7)
+        return;
+
+    size_t prolog_size_limit = size;
+    if (prolog_size_limit > XML_PROLOG_MAX_SIZE)
+        prolog_size_limit = XML_PROLOG_MAX_SIZE;
+    const char *data_ptr = data;
+    const char *end_data = (const char*)(data + prolog_size_limit);
+
+    // check for '<?xml '
+    if (data_ptr + 6 >= end_data || strncmp(data_ptr, "<?xml ", 6) != 0)
+        return;
+    data_ptr += 6;
+
+    // search for ?>
+    const char *end_prolog_ptr = data_ptr;
+    while (end_prolog_ptr != end_data && *end_prolog_ptr && !(end_prolog_ptr[-1] == '?' && *end_prolog_ptr == '>'))
+        end_prolog_ptr++;
+    if (end_prolog_ptr == end_data ||
+        !(end_prolog_ptr[-1] == '?' && *end_prolog_ptr == '>') ||
+        data_ptr + 8 >= end_prolog_ptr)
+    {
+        return;
+    }
+
+    *prolog_present = true;
+
+    // search for encoding="
+    data_ptr += 8;
+    while (data_ptr != end_prolog_ptr && data_ptr[-1] != 'g' && strncmp(&data_ptr[-8], "encoding", 8) != 0)
+        data_ptr++;
+    while (data_ptr != end_prolog_ptr && XML_SPACE(*data_ptr))
+        data_ptr++;
+    if (data_ptr == end_prolog_ptr || *data_ptr != '=')
+        return;
+    data_ptr++;
+    while (data_ptr != end_prolog_ptr && XML_SPACE(*data_ptr))
+        data_ptr++;
+    if (data_ptr == end_prolog_ptr || !(*data_ptr == '\'' || *data_ptr == '"'))
+        return;
+    char quote_char = *data_ptr;
+    data_ptr++;
+    while (data_ptr != end_prolog_ptr && XML_SPACE(*data_ptr))
+        data_ptr++;
+    if (data_ptr == end_prolog_ptr)
+      return;
+
+    *encoding_present = true;
+    *encoding = bmx::UNKNOWN_TEXT_ENCODING;
+
+    // check for utf-8 and utf-16
+    if (data_ptr == end_prolog_ptr || !(*data_ptr == 'U' || *data_ptr == 'u'))
+        return;
+    data_ptr++;
+    if (data_ptr == end_prolog_ptr || !(*data_ptr == 'T' || *data_ptr == 't'))
+        return;
+    data_ptr++;
+    if (data_ptr == end_prolog_ptr || !(*data_ptr == 'F' || *data_ptr == 'f'))
+        return;
+    data_ptr++;
+    if (data_ptr != end_prolog_ptr && *data_ptr == '-')
+        data_ptr++;
+    if (data_ptr != end_prolog_ptr && *data_ptr == '8') {
+        *encoding = bmx::UTF8;
+    } else if (data_ptr != end_prolog_ptr && *data_ptr == '1') {
+        data_ptr++;
+        if (data_ptr != end_prolog_ptr && *data_ptr == '6')
+            *encoding = bmx::UTF16;
+    }
+    if (*encoding != bmx::UNKNOWN_TEXT_ENCODING) {
+        data_ptr++;
+        while (data_ptr != end_prolog_ptr && XML_SPACE(*data_ptr))
+            data_ptr++;
+        if (data_ptr == end_prolog_ptr || *data_ptr != quote_char)
+            *encoding = bmx::UNKNOWN_TEXT_ENCODING;
+    }
+
+#undef XML_SPACE
+}
+
+static void get_xml_prolog_encoding_16bit_be(const unsigned char *data, size_t size, bmx::TextEncoding *encoding)
+{
+  char utf8_buf[XML_PROLOG_MAX_SIZE];
+  size_t utf8_size = 0;
+
+  // convert to single byte chars
+  size_t i;
+  for (i = 0; i < size && utf8_size < sizeof(utf8_buf); i += 2, utf8_size++) {
+      if (data[i] || data[i + 1] > 0x7f)
+          break;
+      utf8_buf[utf8_size] = (char)data[i + 1];
+  }
+
+  bool prolog_present;
+  bool encoding_present;
+  get_xml_prolog_encoding(utf8_buf, utf8_size, encoding, &prolog_present, &encoding_present);
+
+  if (*encoding != bmx::UTF16)
+      *encoding = bmx::UNKNOWN_TEXT_ENCODING; // ignore contradictory prolog encoding utf-8
+}
+
+static void get_xml_prolog_encoding_16bit_le(const unsigned char *data, size_t size, bmx::TextEncoding *encoding)
+{
+  char utf8_buf[XML_PROLOG_MAX_SIZE];
+  size_t utf8_size = 0;
+
+  // convert to single byte chars
+  size_t i;
+  for (i = 0; i < size && utf8_size < sizeof(utf8_buf); i += 2, utf8_size++) {
+      if (data[i] > 0x7f || data[i + 1])
+          break;
+      utf8_buf[utf8_size] = (char)data[i];
+  }
+
+  bool prolog_present;
+  bool encoding_present;
+  get_xml_prolog_encoding(utf8_buf, utf8_size, encoding, &prolog_present, &encoding_present);
+
+  if (*encoding != bmx::UTF16)
+      *encoding = bmx::UNKNOWN_TEXT_ENCODING; // ignore contradictory prolog encoding utf-8
 }
 
 
@@ -175,7 +332,7 @@ bool bmx::get_sample_sequence(Rational lower_edit_rate, Rational higher_edit_rat
             } else {
                 // try known sample sequences
                 size_t i;
-                for (i = 0; i < ARRAY_SIZE(SAMPLE_SEQUENCES); i++) {
+                for (i = 0; i < BMX_ARRAY_SIZE(SAMPLE_SEQUENCES); i++) {
                     if (lower_edit_rate == SAMPLE_SEQUENCES[i].lower_edit_rate &&
                         higher_edit_rate == SAMPLE_SEQUENCES[i].higher_edit_rate)
                     {
@@ -456,10 +613,10 @@ string bmx::get_cwd()
 
         delete [] temp_path;
         if (errno != ERANGE) {
-            throw BMXException("Failed to get current working directory: %s", strerror(errno));
+            throw BMXException("Failed to get current working directory: %s", bmx_strerror(errno).c_str());
         } else if (path_size >= MAX_REASONABLE_PATH_SIZE) {
             throw BMXException("Maximum path size (%d) for current working directory exceeded",
-                               MAX_REASONABLE_PATH_SIZE, strerror(errno));
+                               MAX_REASONABLE_PATH_SIZE);
         }
         path_size += 1024;
     }
@@ -496,13 +653,15 @@ bool bmx::check_file_exists(string filename)
 
 bool bmx::check_is_dir(string name)
 {
+#if defined(_WIN32)
+    struct _stati64 buf;
+    if (_stati64(name.c_str(), &buf) != 0)
+        return false;
+    return ((buf.st_mode & _S_IFMT) == _S_IFDIR);
+#else
     struct stat buf;
     if (stat(name.c_str(), &buf) != 0)
         return false;
-
-#if defined(_MSC_VER)
-    return ((buf.st_mode & _S_IFMT) == _S_IFDIR);
-#else
     return S_ISDIR(buf.st_mode);
 #endif
 }
@@ -531,24 +690,136 @@ bool bmx::check_ends_with_dir_separator(string name)
 #endif
 }
 
+string bmx::trim_string(string value)
+{
+    size_t start;
+    size_t len;
+
+    // trim spaces from the start
+    start = 0;
+    while (start < value.size() && isspace(value[start]))
+        start++;
+    if (start >= value.size())
+        return "";
+
+    // trim spaces from the end by reducing the length
+    len = value.size() - start;
+    while (len > 0 && isspace(value[start + len - 1]))
+        len--;
+
+    return value.substr(start, len);
+}
+
+vector<string> bmx::split_string(string value, char separator, bool allow_empty)
+{
+    vector<string> result;
+    size_t start = 0;
+    size_t end = 0;
+    while (end < value.size()) {
+        if (value[end] == separator) {
+            if (allow_empty || end != start)
+                result.push_back(value.substr(start, end - start));
+            start = end + 1;
+            end = start;
+        }
+        end++;
+    }
+    if (end != start)
+        result.push_back(value.substr(start, end - start));
+
+    return result;
+}
+
+void bmx::get_xml_encoding(const unsigned char *data, size_t size, bmx::TextEncoding *encoding, bmx::ByteOrder *byte_order)
+{
+    // see also section F in the XML specification, http://www.w3.org/TR/REC-xml/
+
+    *encoding   = UNKNOWN_TEXT_ENCODING;
+    *byte_order = UNKNOWN_BYTE_ORDER;
+
+    if (size < 4)
+        return;
+
+    if (data[0] == 0x00 && data[1] == 0x00 && data[2] == 0xfe && data[3] == 0xff) {
+        // UCS-4
+        *byte_order = BMX_BIG_ENDIAN;
+    } else if (data[0] == 0xff && data[1] == 0xfe && data[2] == 0x00 && data[3] == 0x00) {
+        // UCS-4
+        *byte_order = BMX_LITTLE_ENDIAN;
+    } else if (data[0] == 0x00 && data[1] == 0x00 && data[2] == 0xff && data[3] == 0xfe) {
+        // UCS-4, unusual octet order
+    } else if (data[0] == 0xfe && data[1] == 0xff && data[2] == 0x00 && data[3] == 0x00) {
+        // UCS-4, unusual octet order
+    } else if (data[0] == 0xfe && data[1] == 0xff && (data[2] != 0x00 || data[3] != 0x00)) {
+        *encoding   = UTF16;
+        *byte_order = BMX_BIG_ENDIAN;
+    } else if (data[0] == 0xff && data[1] == 0xfe && (data[2] != 0x00 || data[3] != 0x00)) {
+        *encoding   = UTF16;
+        *byte_order = BMX_LITTLE_ENDIAN;
+    } else if (data[0] == 0xef && data[1] == 0xbb && data[2] == 0xbf) {
+        *encoding   = UTF8;
+        *byte_order = BMX_BYTE_ORIENTED;
+    } else if (data[0] == 0x00 && data[1] == 0x00 && data[2] == 0x00 && data[3] == 0x3c) {
+        // 32-bit encoding
+        *byte_order = BMX_BIG_ENDIAN;
+    } else if (data[0] == 0x3c && data[1] == 0x00 && data[2] == 0x00 && data[3] == 0x00) {
+        // 32-bit encoding
+        *byte_order = BMX_LITTLE_ENDIAN;
+    } else if (data[0] == 0x00 && data[1] == 0x00 && data[2] == 0x3c && data[3] == 0x00) {
+        // 32-bit encoding, unusual octet order
+    } else if (data[0] == 0x00 && data[1] == 0x3c && data[2] == 0x00 && data[3] == 0x00) {
+        // 32-bit encoding, unusual octet order
+    } else if (data[0] == 0x00 && data[1] == 0x3c && data[2] == 0x00 && data[3] == 0x3f) {
+        *byte_order = BMX_BIG_ENDIAN;
+        get_xml_prolog_encoding_16bit_be(data, size, encoding);
+    } else if (data[0] == 0x3c && data[1] == 0x00 && data[2] == 0x3f && data[3] == 0x00) {
+        *byte_order = BMX_LITTLE_ENDIAN;
+        get_xml_prolog_encoding_16bit_le(data, size, encoding);
+    } else if (data[0] == 0x4c && data[1] == 0x6f && data[2] == 0xa7 && data[3] == 0x94) {
+        // EBCDIC
+        *byte_order = BMX_BYTE_ORIENTED;
+    } else {
+        bool prolog_present;
+        bool encoding_present;
+        get_xml_prolog_encoding((const char*)data, size, encoding, &prolog_present, &encoding_present);
+        if (!encoding_present)
+            *encoding = UTF8;
+        if (*encoding == UTF8 || prolog_present)
+            *byte_order = BMX_BYTE_ORIENTED;
+        if (*encoding != UTF8)
+            *encoding = UNKNOWN_TEXT_ENCODING; // ignore contradictory prolog encoding utf-16
+    }
+}
+
 bmx::Timestamp bmx::generate_timestamp_now()
 {
     Timestamp now;
     struct tm gmt;
 
-#if defined(_MSC_VER)
+    if (BMX_REGRESSION_TEST) {
+        now.year  = 1970;
+        now.month = 1;
+        now.day   = 1;
+        now.hour  = 0;
+        now.min   = 0;
+        now.sec   = 0;
+        now.qmsec = 0;
+        return now;
+    }
+
+#if HAVE_GMTIME_R
+    time_t t = time(0);
+    BMX_CHECK(gmtime_r(&t, &gmt));
+#elif defined(_MSC_VER)
     struct _timeb tb;
     BMX_CHECK(_ftime_s(&tb) == 0);
     BMX_CHECK(gmtime_s(&gmt, &tb.time) == 0);
-#elif defined(_WIN32)
-    // TODO: need thread-safe (reentrant) version
+#else
+    // Note: gmtime is not thread-safe
     time_t t = time(0);
     const struct tm *gmt_ptr = gmtime(&t);
     BMX_CHECK(gmt_ptr);
     gmt = *gmt_ptr;
-#else
-    time_t t = time(0);
-    BMX_CHECK(gmtime_r(&t, &gmt));
 #endif
 
     now.year  = gmt.tm_year + 1900;
@@ -566,15 +837,35 @@ bmx::UUID bmx::generate_uuid()
 {
     UUID bmx_uuid;
 
+    if (BMX_REGRESSION_TEST) {
+        static uint32_t count = 65537; // not 1 to avoid clashing with libMXF generated regtest UUID
+
+        memset(&bmx_uuid, 0, sizeof(bmx_uuid));
+        bmx_uuid.octet12 = (uint8_t)((count >> 24) & 0xff);
+        bmx_uuid.octet13 = (uint8_t)((count >> 16) & 0xff);
+        bmx_uuid.octet14 = (uint8_t)((count >> 8)  & 0xff);
+        bmx_uuid.octet15 = (uint8_t)( count        & 0xff);
+
+        count++;
+    } else {
 #if defined(_WIN32)
-    GUID guid;
-    CoCreateGuid(&guid);
-    memcpy(&bmx_uuid, &guid, sizeof(bmx_uuid));
+        GUID guid;
+        CoCreateGuid(&guid);
+        bmx_uuid.octet0 = (uint8_t)((guid.Data1 >> 24) & 0xff);
+        bmx_uuid.octet1 = (uint8_t)((guid.Data1 >> 16) & 0xff);
+        bmx_uuid.octet2 = (uint8_t)((guid.Data1 >>  8) & 0xff);
+        bmx_uuid.octet3 = (uint8_t)((guid.Data1      ) & 0xff);
+        bmx_uuid.octet4 = (uint8_t)((guid.Data2 >>  8) & 0xff);
+        bmx_uuid.octet5 = (uint8_t)((guid.Data2      ) & 0xff);
+        bmx_uuid.octet6 = (uint8_t)((guid.Data3 >>  8) & 0xff);
+        bmx_uuid.octet7 = (uint8_t)((guid.Data3      ) & 0xff);
+        memcpy(&bmx_uuid.octet8, guid.Data4, 8);
 #else
-    uuid_t uuid;
-    uuid_generate(uuid);
-    memcpy(&bmx_uuid, &uuid, sizeof(bmx_uuid));
+        uuid_t uuid;
+        uuid_generate(uuid);
+        memcpy(&bmx_uuid, &uuid, sizeof(bmx_uuid));
 #endif
+    }
 
     return bmx_uuid;
 }
@@ -592,6 +883,28 @@ bmx::UMID bmx::generate_umid()
     memcpy(&umid.octet16, &material_number, sizeof(material_number));
 
     return umid;
+}
+
+bmx::UUID bmx::create_uuid_from_name(const void *ns, size_t ns_size, const string &name)
+{
+    unsigned char digest[16];
+    MD5Context ctx;
+    md5_init(&ctx);
+    md5_update(&ctx, (const unsigned char*)ns, (uint32_t)ns_size);
+    md5_update(&ctx, (const unsigned char*)name.c_str(), (uint32_t)name.size());
+    md5_final(digest, &ctx);
+
+    UUID uuid;
+    memcpy(&uuid, digest, 16);
+    uuid.octet6 = (uuid.octet6 & 0x0f) | 0x30;  // version 3 - MD5 hash and namespace
+    uuid.octet8 = (uuid.octet8 & 0x3f) | 0x80;  // variant rfc 4122
+
+    return uuid;
+}
+
+bmx::UUID bmx::create_uuid_from_name(const string &name)
+{
+  return create_uuid_from_name(BMX_NAMESPACE.c_str(), BMX_NAMESPACE.size(), name);
 }
 
 uint16_t bmx::get_rounded_tc_base(Rational rate)
@@ -614,7 +927,7 @@ string bmx::get_duration_string(int64_t count, Rational rate)
     min %= 60;
 
     char buffer[64];
-    sprintf(buffer, "%02"PRId64":%02d:%02d:%02d", hour, (int)min, (int)sec, (int)frame);
+    bmx_snprintf(buffer, sizeof(buffer), "%02" PRId64 ":%02d:%02d:%02d", hour, (int)min, (int)sec, (int)frame);
 
     return buffer;
 }
@@ -634,7 +947,7 @@ string bmx::get_generic_duration_string(int64_t count, Rational rate)
     int64_t sec_frac = 100 * (msec % 1000) / 1000;
 
     char buffer[64];
-    sprintf(buffer, "%02"PRId64":%02d:%02d.%02d", hour, (int)min, (int)sec, (int)sec_frac);
+    bmx_snprintf(buffer, sizeof(buffer), "%02" PRId64 ":%02d:%02d.%02d", hour, (int)min, (int)sec, (int)sec_frac);
 
     return buffer;
 }
@@ -654,7 +967,7 @@ string bmx::get_generic_duration_string_2(int64_t count, Rational rate)
     min %= 60;
 
     char buffer[64];
-    sprintf(buffer, "%02"PRId64":%02d:%02d:%02d @%ufps", hour, (int)min, (int)sec, (int)frame, rounded_rate);
+    bmx_snprintf(buffer, sizeof(buffer), "%02" PRId64 ":%02d:%02d:%02d @%ufps", hour, (int)min, (int)sec, (int)frame, rounded_rate);
 
     return buffer;
 }
@@ -668,12 +981,12 @@ bmx::Rational bmx::convert_int_to_rational(int32_t value)
 string bmx::get_timecode_string(Timecode timecode)
 {
     char buffer[64];
-    sprintf(buffer, "%02d:%02d:%02d%c%02d",
-            timecode.GetHour(),
-            timecode.GetMin(),
-            timecode.GetSec(),
-            timecode.IsDropFrame() ? ';' : ':',
-            timecode.GetFrame());
+    bmx_snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d%c%02d",
+                 timecode.GetHour(),
+                 timecode.GetMin(),
+                 timecode.GetSec(),
+                 timecode.IsDropFrame() ? ';' : ':',
+                 timecode.GetFrame());
     return buffer;
 }
 
@@ -697,16 +1010,30 @@ string bmx::get_umid_string(UMID umid)
     return buffer;
 }
 
-bmx::Rational bmx::normalize_rate(Rational rate)
+string bmx::get_uuid_string(UUID uuid)
 {
-    if (rate.numerator == 0 || rate.denominator == 0)
+    char buffer[64];
+
+    bmx_snprintf(buffer, sizeof(buffer),
+                 "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+                 uuid.octet0,  uuid.octet1,  uuid.octet2,  uuid.octet3,
+                 uuid.octet4,  uuid.octet5,  uuid.octet6,  uuid.octet7,
+                 uuid.octet8,  uuid.octet9,  uuid.octet10, uuid.octet11,
+                 uuid.octet12, uuid.octet13, uuid.octet14, uuid.octet15);
+
+    return buffer;
+}
+
+bmx::Rational bmx::reduce_rational(Rational rational)
+{
+    if (rational.numerator == 0 || rational.denominator == 0)
         return ZERO_RATIONAL;
 
-    Rational result = rate;
+    Rational result = rational;
 
-    // can't normalize an invalid negative rate
-    if ((result.numerator < 0) ^ (result.denominator < 0))
-        return rate;
+    int32_t sign = 1;
+    if ((result.numerator < 0) != (result.denominator < 0))
+        sign = -1;
 
     if (result.numerator < 0)
         result.numerator = -result.numerator;
@@ -714,8 +1041,21 @@ bmx::Rational bmx::normalize_rate(Rational rate)
         result.denominator = -result.denominator;
 
     int32_t d = gcd(result.numerator, result.denominator);
-    result.numerator /= d;
+    result.numerator   /= d;
     result.denominator /= d;
+
+    result.numerator *= sign;
+
+    return result;
+}
+
+bmx::Rational bmx::normalize_rate(Rational rate)
+{
+    Rational result = reduce_rational(rate);
+
+    // can't normalize an invalid negative rate
+    if (result.numerator < 0)
+        return rate;
 
     if (result.numerator == 2997 && result.denominator == 1000)
         return FRAME_RATE_2997;
@@ -723,6 +1063,44 @@ bmx::Rational bmx::normalize_rate(Rational rate)
         return FRAME_RATE_5994;
 
     return result;
+}
+
+uint8_t bmx::get_system_item_cp_rate(Rational frame_rate)
+{
+    if (frame_rate.denominator != 1 && frame_rate.denominator != 1001)
+        return 0;
+
+    int32_t frame_rate_per_sec = frame_rate.numerator;
+    if (frame_rate.denominator == 1001)
+        frame_rate_per_sec /= 1000;
+
+    size_t i;
+    for (i = 0; i < BMX_ARRAY_SIZE(CONTENT_PACKAGE_RATES); i++) {
+        if (CONTENT_PACKAGE_RATES[i].frame_rate_per_sec == frame_rate_per_sec)
+            return (CONTENT_PACKAGE_RATES[i].cp_rate_id << 1) | (frame_rate.denominator == 1 ? 0 : 1);
+    }
+
+    return 0;
+}
+
+uint32_t bmx::get_kag_fill_size(int64_t klv_size, uint32_t kag_size, uint8_t min_llen)
+{
+    // assuming the partition pack is aligned to the kag working from the first byte of the file
+
+    uint32_t fill_size = 0;
+    uint32_t klv_in_kag_size = (uint32_t)(klv_size % kag_size);
+    if (klv_in_kag_size > 0) {
+        fill_size = kag_size - klv_in_kag_size;
+        while (fill_size < (uint32_t)min_llen + mxfKey_extlen)
+            fill_size += kag_size;
+    }
+
+    return fill_size;
+}
+
+int64_t bmx::get_kag_aligned_size(int64_t klv_size, uint32_t kag_size, uint8_t min_llen)
+{
+    return klv_size + get_kag_fill_size(klv_size, kag_size, min_llen);
 }
 
 void bmx::decode_smpte_timecode(Rational frame_rate, const unsigned char *smpte_tc, unsigned int size,
@@ -851,5 +1229,30 @@ void bmx::bmx_vsnprintf(char *str, size_t size, const char *format, va_list ap)
     if (vsnprintf(str, size, format, ap) < 0 && str && size > 0)
         str[0] = 0;
 #endif
+}
+
+string bmx::bmx_strerror(int errnum)
+{
+    char buf[128];
+
+#ifdef HAVE_STRERROR_R
+
+#ifdef _GNU_SOURCE
+    const char *err_str = strerror_r(errnum, buf, sizeof(buf));
+    if (err_str != buf)
+        bmx_snprintf(buf, sizeof(buf), "%s", err_str);
+#else
+    if (strerror_r(errnum, buf, sizeof(buf)) != 0)
+        bmx_snprintf(buf, sizeof(buf), "unknown error code %d", errnum);
+#endif
+
+#elif defined(_MSC_VER)
+    if (strerror_s(buf, sizeof(buf), errnum) != 0)
+        bmx_snprintf(buf, sizeof(buf), "unknown error code %d", errnum);
+#else
+    bmx_snprintf(buf, sizeof(buf), "error code %d", errnum);
+#endif
+
+    return buf;
 }
 

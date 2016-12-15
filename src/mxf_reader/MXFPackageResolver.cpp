@@ -33,6 +33,11 @@
 #include "config.h"
 #endif
 
+#if !defined(_MSC_VER)
+#include <strings.h>
+#endif
+#include <cstring>
+
 #include <bmx/mxf_reader/MXFPackageResolver.h>
 #include <bmx/mxf_reader/MXFFileReader.h>
 #include <bmx/MXFUtils.h>
@@ -61,17 +66,31 @@ ResolvedPackage::ResolvedPackage()
 
 DefaultMXFPackageResolver::DefaultMXFPackageResolver()
 {
+    mFileFactory = new DefaultMXFFileFactory();
+    mOwnFilefactory = true;
     mFileReader = 0;
 }
 
 DefaultMXFPackageResolver::~DefaultMXFPackageResolver()
 {
+    if (mOwnFilefactory)
+        delete mFileFactory;
+
     size_t i;
     for (i = 0; i < mExternalReaders.size(); i++)
         delete mExternalReaders[i];
 }
 
-void DefaultMXFPackageResolver::ExtractResolvedPackages(MXFFileReader *file_reader)
+void DefaultMXFPackageResolver::SetFileFactory(MXFFileFactory *factory, bool take_ownership)
+{
+    if (mOwnFilefactory)
+        delete mFileFactory;
+
+    mFileFactory = factory;
+    mOwnFilefactory = take_ownership;
+}
+
+void DefaultMXFPackageResolver::ExtractPackages(MXFFileReader *file_reader)
 {
     if (!mFileReader)
         mFileReader = file_reader;
@@ -86,6 +105,13 @@ void DefaultMXFPackageResolver::ExtractResolvedPackages(MXFFileReader *file_read
 
     size_t i;
     for (i = 0; i < packages.size(); i++) {
+        if (mResolvedPackageTypeMap.count(packages[i]->getPackageUID()) &&
+            mResolvedPackageTypeMap[packages[i]->getPackageUID()] != *packages[i]->getKey())
+        {
+            BMX_EXCEPTION(("Different package types are using the same identifier '%s'",
+                           get_umid_string(packages[i]->getPackageUID()).c_str()));
+        }
+
         ResolvedPackage resolved_package;
         resolved_package.package = packages[i];
         resolved_package.file_reader = file_reader;
@@ -111,6 +137,7 @@ void DefaultMXFPackageResolver::ExtractResolvedPackages(MXFFileReader *file_read
         }
 
         mResolvedPackages.push_back(resolved_package);
+        mResolvedPackageTypeMap[packages[i]->getPackageUID()] = *packages[i]->getKey();
     }
 }
 
@@ -157,12 +184,30 @@ vector<ResolvedPackage> DefaultMXFPackageResolver::ResolveSourceClip(SourceClip 
             continue;
 
         URI uri;
-        if (!uri.Parse(network_locator->getURLString())) {
-            log_warn("Failed to parse url string '%s' from MXF file\n", network_locator->getURLString().c_str());
+        string url = network_locator->getURLString();
+        if (!uri.Parse(url)) {
+            log_warn("Failed to parse network locator URL string '%s'\n", url.c_str());
+#if defined(_MSC_VER)
+            if (_strnicmp(url.c_str(), "file://", 7) == 0)
+#else
+            if (strncasecmp(url.c_str(), "file://", 7) == 0)
+#endif
+            {
+                // if it starts with "file://" then it shall be treated as a file URL according to ST377 and therefore
+                // the parse failure means it is skipped here
+                continue;
+            }
+            log_warn("Assuming network locator URL string '%s' is a file path\n", url.c_str());
+            if (!uri.ParseFilename(network_locator->getURLString())) {
+                log_warn("Failed to parse network locator URL string '%s' as a file path\n", url.c_str());
+                continue;
+            }
+        }
+        if (!uri.IsAbsFile() && !uri.IsRelative()) {
+            log_warn("Skipping network locator URL string '%s' that is not a relative URI or 'file://' URL\n",
+                     url.c_str());
             continue;
         }
-        if (!uri.IsAbsFile() && !uri.IsRelative())
-            continue;
 
         if (uri.IsRelative())
             uri.MakeAbsolute(mFileReader->GetAbsoluteURI());
@@ -176,17 +221,22 @@ vector<ResolvedPackage> DefaultMXFPackageResolver::ResolveSourceClip(SourceClip 
         if (j < mExternalReaders.size() || mFileReader->GetAbsoluteURI() == uri)
             continue;
 
-        string filename = uri.ToFilename();
+        string file_location;
+        if (uri.IsAbsFile())
+            file_location = uri.ToFilename();
+        else
+            file_location = uri.ToString();
         MXFFileReader *file_reader = new MXFFileReader();
-        MXFFileReader::OpenResult result = file_reader->Open(filename);
+        file_reader->SetFileFactory(mFileFactory, false);
+        MXFFileReader::OpenResult result = file_reader->Open(file_location);
         if (result != MXFFileReader::MXF_RESULT_SUCCESS) {
-            log_warn("Failed to open external MXF file '%s'\n", filename.c_str());
+            log_warn("Failed to open external MXF file '%s'\n", url.c_str());
             delete file_reader;
             continue;
         }
 
         mExternalReaders.push_back(file_reader);
-        ExtractResolvedPackages(file_reader);
+        ExtractPackages(file_reader);
     }
 
     return ResolveSourceClip(source_clip);

@@ -47,9 +47,10 @@ using namespace mxfpp;
 
 
 
-void MXFAPPInfo::RegisterExtensions(DataModel *data_model)
+void MXFAPPInfo::RegisterExtensions(HeaderMetadata *header_metadata)
 {
-    BMX_CHECK(mxf_app_load_extensions(data_model->getCDataModel()));
+    BMX_CHECK(mxf_app_load_extensions(header_metadata->getDataModel()->getCDataModel()));
+    header_metadata->getDataModel()->finalise();
 }
 
 bool MXFAPPInfo::IsAPP(HeaderMetadata *header_metadata)
@@ -74,6 +75,12 @@ MXFAPPInfo::MXFAPPInfo()
 MXFAPPInfo::~MXFAPPInfo()
 {
     ResetAll();
+}
+
+bool MXFAPPInfo::CheckIssues(mxfpp::HeaderMetadata *header_metadata)
+{
+    return mxf_app_check_issues(header_metadata->getCHeaderMetadata());
+
 }
 
 bool MXFAPPInfo::ReadAll(HeaderMetadata *header_metadata)

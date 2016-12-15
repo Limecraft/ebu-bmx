@@ -85,26 +85,29 @@ static const AvidSampleRateSupport AVID_SAMPLE_RATE_SUPPORT[] =
     {DVBASED_DV25,             {{25, 1}, {30000, 1001}, {0, 0}}},
     {DV50,                     {{25, 1}, {30000, 1001}, {0, 0}}},
     {DV100_1080I,              {{25, 1}, {30000, 1001}, {0, 0}}},
-    {DV100_720P,               {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {DV100_720P,               {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {MPEG2LG_422P_HL_1080I,    {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_422P_HL_1080P,    {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_422P_HL_720P,     {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {MPEG2LG_422P_HL_1080P,    {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_422P_HL_720P,     {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {MPEG2LG_MP_HL_1920_1080I, {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_HL_1920_1080P, {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_HL_1920_1080P, {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
     {MPEG2LG_MP_HL_1440_1080I, {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_HL_1440_1080P, {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_HL_720P,       {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_HL_1440_1080P, {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_HL_720P,       {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {MPEG2LG_MP_H14_1080I,     {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_H14_1080P,     {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_H14_1080P,     {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
     {D10_30,                   {{25, 1}, {30000, 1001}, {0, 0}}},
     {D10_40,                   {{25, 1}, {30000, 1001}, {0, 0}}},
     {D10_50,                   {{25, 1}, {30000, 1001}, {0, 0}}},
+    {AVCI200_1080I,            {{25, 1}, {30000, 1001}, {0, 0}}},
+    {AVCI200_1080P,            {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI200_720P,             {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {AVCI100_1080I,            {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI100_1080P,            {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI100_720P,             {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI100_1080P,            {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI100_720P,             {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {AVCI50_1080I,             {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI50_1080P,             {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI50_720P,              {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI50_1080P,             {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI50_720P,              {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {MJPEG_2_1,                {{25, 1}, {30000, 1001}, {0, 0}}},
     {MJPEG_3_1,                {{25, 1}, {30000, 1001}, {0, 0}}},
     {MJPEG_10_1,               {{25, 1}, {30000, 1001}, {0, 0}}},
@@ -112,20 +115,24 @@ static const AvidSampleRateSupport AVID_SAMPLE_RATE_SUPPORT[] =
     {MJPEG_4_1M,               {{25, 1}, {30000, 1001}, {0, 0}}},
     {MJPEG_10_1M,              {{25, 1}, {30000, 1001}, {0, 0}}},
     {MJPEG_15_1S,              {{25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_1080P_1235,           {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_1080P_1237,           {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_1080P_1238,           {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_1080I_1241,           {{25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_1080I_1242,           {{25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_1080I_1243,           {{25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_720P_1250,            {{25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_720P_1251,            {{25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_720P_1252,            {{25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_1080P_1253,           {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {VC3_1080P_1235,           {{-1, -1}, {0, 0}}},
+    {VC3_1080P_1237,           {{-1, -1}, {0, 0}}},
+    {VC3_1080P_1238,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1241,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1242,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1243,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1244,           {{-1, -1}, {0, 0}}},
+    {VC3_720P_1250,            {{-1, -1}, {0, 0}}},
+    {VC3_720P_1251,            {{-1, -1}, {0, 0}}},
+    {VC3_720P_1252,            {{-1, -1}, {0, 0}}},
+    {VC3_1080P_1253,           {{-1, -1}, {0, 0}}},
+    {VC3_720P_1258,            {{-1, -1}, {0, 0}}},
+    {VC3_1080P_1259,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1260,           {{-1, -1}, {0, 0}}},
     {UNC_SD,                   {{25, 1}, {30000, 1001}, {0, 0}}},
     {UNC_HD_1080I,             {{25, 1}, {30000, 1001}, {0, 0}}},
-    {UNC_HD_1080P,             {{25, 1}, {30000, 1001}, {0, 0}}},
-    {UNC_HD_720P,              {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {UNC_HD_1080P,             {{25, 1}, {30000, 1001}, {30, 1}, {50, 1}, {60000, 1001}, {60, 1}, {0, 0}}},
+    {UNC_HD_720P,              {{25, 1}, {30000, 1001}, {30, 1}, {50, 1}, {60000, 1001}, {60, 1}, {0, 0}}},
     {AVID_10BIT_UNC_SD,        {{25, 1}, {30000, 1001}, {0, 0}}},
     {AVID_10BIT_UNC_HD_1080I,  {{25, 1}, {30000, 1001}, {0, 0}}},
     {AVID_10BIT_UNC_HD_1080P,  {{25, 1}, {30000, 1001}, {0, 0}}},
@@ -142,8 +149,11 @@ static const AvidSampleRateSupport AVID_SAMPLE_RATE_SUPPORT[] =
 bool AvidTrack::IsSupported(EssenceType essence_type, mxfRational sample_rate)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(AVID_SAMPLE_RATE_SUPPORT); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(AVID_SAMPLE_RATE_SUPPORT); i++) {
         if (essence_type == AVID_SAMPLE_RATE_SUPPORT[i].essence_type) {
+            if (AVID_SAMPLE_RATE_SUPPORT[i].sample_rate[0].numerator < 0)
+                return true;
+
             size_t j = 0;
             while (AVID_SAMPLE_RATE_SUPPORT[i].sample_rate[j].numerator) {
                 if (sample_rate == AVID_SAMPLE_RATE_SUPPORT[i].sample_rate[j])
@@ -176,6 +186,8 @@ AvidTrack* AvidTrack::OpenNew(AvidClip *clip, File *file, uint32_t track_index, 
         case MPEG2LG_MP_HL_720P:
         case MPEG2LG_MP_H14_1080I:
         case MPEG2LG_MP_H14_1080P:
+            if (clip->mFlavour & AVID_GROWING_FILE_FLAVOUR)
+                BMX_EXCEPTION(("Avid growing file is not supported for format '%s'", essence_type_to_string(essence_type)));
             return new AvidMPEG2LGTrack(clip, track_index, essence_type, file);
         case MJPEG_2_1:
         case MJPEG_3_1:
@@ -184,11 +196,16 @@ AvidTrack* AvidTrack::OpenNew(AvidClip *clip, File *file, uint32_t track_index, 
         case MJPEG_4_1M:
         case MJPEG_10_1M:
         case MJPEG_15_1S:
+            if (clip->mFlavour & AVID_GROWING_FILE_FLAVOUR)
+                BMX_EXCEPTION(("Avid growing file is not supported for format '%s'", essence_type_to_string(essence_type)));
             return new AvidMJPEGTrack(clip, track_index, essence_type, file);
         case D10_30:
         case D10_40:
         case D10_50:
             return new AvidD10Track(clip, track_index, essence_type, file);
+        case AVCI200_1080I:
+        case AVCI200_1080P:
+        case AVCI200_720P:
         case AVCI100_1080I:
         case AVCI100_1080P:
         case AVCI100_720P:
@@ -202,10 +219,14 @@ AvidTrack* AvidTrack::OpenNew(AvidClip *clip, File *file, uint32_t track_index, 
         case VC3_1080I_1241:
         case VC3_1080I_1242:
         case VC3_1080I_1243:
+        case VC3_1080I_1244:
         case VC3_720P_1250:
         case VC3_720P_1251:
         case VC3_720P_1252:
         case VC3_1080P_1253:
+        case VC3_720P_1258:
+        case VC3_1080P_1259:
+        case VC3_1080I_1260:
             return new AvidVC3Track(clip, track_index, essence_type, file);
         case UNC_SD:
         case UNC_HD_1080I:
@@ -248,19 +269,21 @@ AvidTrack::AvidTrack(AvidClip *clip, uint32_t track_index, EssenceType essence_t
     mOutputTrackNumberSet = false;
     mDataModel = 0;
     mHeaderMetadata = 0;
-    mHeaderMetadataStartPos = 0;
     mEssenceDataStartPos = 0;
     mCBEIndexSegment = 0;
     mMaterialPackage = 0;
     mFileSourcePackage = 0;
     mRefSourcePackage = 0;
+    mOMMMobCompleteTaggedValue = 0;
+    mEWCFileMobTaggedValue = 0;
     mContainerDuration = 0;
     mContainerSize = 0;
+    mOutputStartOffset = 0;
     memset(&mEssenceContainerUL, 0, sizeof(mEssenceContainerUL));
 
     mEssenceType = essence_type;
     mDescriptorHelper = MXFDescriptorHelper::Create(essence_type);
-    mDescriptorHelper->SetFlavour(MXFDescriptorHelper::AVID_FLAVOUR);
+    mDescriptorHelper->SetFlavour(MXFDESC_SMPTE_377_2004_FLAVOUR | MXFDESC_AVID_FLAVOUR);
 }
 
 AvidTrack::~AvidTrack()
@@ -287,6 +310,14 @@ void AvidTrack::SetSourceRef(mxfUMID ref_package_uid, uint32_t ref_track_id)
 {
     mSourceRefPackageUID = ref_package_uid;
     mSourceRefTrackId = ref_track_id;
+}
+
+void AvidTrack::SetOutputStartOffset(int64_t offset)
+{
+    BMX_CHECK(offset == 0 || SupportOutputStartOffset());
+    BMX_CHECK(offset >= 0);
+
+    mOutputStartOffset = offset;
 }
 
 void AvidTrack::PrepareWrite()
@@ -326,11 +357,16 @@ void AvidTrack::CompleteWrite()
     mMXFFile->getPartition(BODY_PARTITION).fillToKag(mMXFFile);
 
 
-    // write the footer partition pack and header metadata
+    // write the footer partition and RIP to memory first
+
+    mMXFFile->openMemoryFile(8192);
+
+
+    // write the footer partition pack
 
     file_pos = mMXFFile->tell();
     Partition &footer_partition = mMXFFile->createPartition();
-    footer_partition.setKey(&MXF_PP_K(OpenIncomplete, Footer));
+    footer_partition.setKey(&MXF_PP_K(ClosedComplete, Footer));
     footer_partition.setKagSize(0x100);
     footer_partition.setIndexSID(mIndexSID);
     footer_partition.setBodySID(0);
@@ -354,26 +390,58 @@ void AvidTrack::CompleteWrite()
     mMXFFile->writeRIP();
 
 
+    // update the footer partition pack and flush memory writes to file
+
+    mMXFFile->updatePartitions();
+    mMXFFile->closeMemoryFile();
+
+
     // update container duration (track durations were updated in AvidClip::CompleteWrite)
 
     FileDescriptor *file_descriptor = dynamic_cast<FileDescriptor*>(mFileSourcePackage->getDescriptor());
     file_descriptor->setContainerDuration(mContainerDuration);
 
 
+    // update growing file attributes
+
+    if (mOMMMobCompleteTaggedValue)
+        mOMMMobCompleteTaggedValue->setValue(1);
+    if (mEWCFileMobTaggedValue)
+        mEWCFileMobTaggedValue->setValue(0);
+
+
+    // re-write header partition to memory first
+
+    mMXFFile->seek(0, SEEK_SET);
+    mMXFFile->openMemoryFile(8192);
+    mMXFFile->setMemoryPartitionIndexes(0, 0); // overwriting and updating from header pp
+
+
+    // update and re-write the header partition pack
+
+    Partition &header_partition = mMXFFile->getPartition(HEADER_PARTITION);
+    header_partition.setKey(&MXF_PP_K(ClosedComplete, Header));
+    header_partition.setFooterPartition(footer_partition.getThisPartition());
+    header_partition.write(mMXFFile);
+
 
     // re-write the header metadata in the header partition
 
-    mMXFFile->seek(mHeaderMetadataStartPos, SEEK_SET);
-    PositionFillerWriter position_filler_writer(FIXED_BODY_PP_OFFSET);
-    mHeaderMetadata->write(mMXFFile, &mMXFFile->getPartition(HEADER_PARTITION), &position_filler_writer);
+    PositionFillerWriter pos_filler_writer(FIXED_BODY_PP_OFFSET);
+    mHeaderMetadata->write(mMXFFile, &header_partition, &pos_filler_writer);
 
 
-    // update and re-write the partition packs
+    // update header partition pack and flush memory writes to file
 
-    mMXFFile->getPartition(HEADER_PARTITION).setKey(&MXF_PP_K(ClosedComplete, Header));
-    mMXFFile->getPartition(BODY_PARTITION).setKey(&MXF_PP_K(ClosedComplete, Body));
-    mMXFFile->getPartition(FOOTER_PARTITION).setKey(&MXF_PP_K(ClosedComplete, Footer));
     mMXFFile->updatePartitions();
+    mMXFFile->closeMemoryFile();
+
+
+    // update body partition and re-write the partition packs
+
+    if (mClip->mFlavour & AVID_GROWING_FILE_FLAVOUR)
+        mMXFFile->getPartition(BODY_PARTITION).setKey(&MXF_PP_K(OpenComplete, Body));
+    mMXFFile->updateBodyPartitions(&MXF_PP_K(ClosedComplete, Body));
 
 
     // done with the file
@@ -395,7 +463,10 @@ int64_t AvidTrack::GetOutputDuration(bool clip_frame_rate) const
 {
     BMX_ASSERT(!clip_frame_rate || mClip->mClipFrameRate == GetSampleRate());
 
-    return mContainerDuration;
+    if (mContainerDuration < mOutputStartOffset)
+        return 0;
+
+    return mContainerDuration - mOutputStartOffset;
 }
 
 int64_t AvidTrack::GetDuration() const
@@ -406,6 +477,11 @@ int64_t AvidTrack::GetDuration() const
 int64_t AvidTrack::GetContainerDuration() const
 {
     return mContainerDuration;
+}
+
+int64_t AvidTrack::GetFilePosition() const
+{
+    return mMXFFile->tell();
 }
 
 void AvidTrack::SetMaterialTrackId(uint32_t track_id)
@@ -442,13 +518,19 @@ void AvidTrack::WriteCBEIndexTable(Partition *partition)
     mCBEIndexSegment->setEditUnitByteCount(GetEditUnitSize());
     mCBEIndexSegment->setIndexDuration(mContainerDuration);
 
-    KAGFillerWriter kag_filler_writer(partition);
-    mCBEIndexSegment->write(mMXFFile, partition, &kag_filler_writer);
+    mCBEIndexSegment->write(mMXFFile, partition, 0);
 }
 
 void AvidTrack::CreateHeaderMetadata()
 {
     BMX_ASSERT(!mHeaderMetadata);
+
+    // initial duration is -1 or GrowingDuration if flavour is growing file
+    int64_t track_growing_duration = -1;
+    if (mClip->mGrowingDuration >= 0) {
+        track_growing_duration = convert_duration(mClip->GetFrameRate(), mClip->mGrowingDuration, GetSampleRate(),
+                                                  ROUND_AUTO);
+    }
 
     // descriptor's essence container label will be replaced by the generic AAF-KLV (aka MXF) label
     mEssenceContainerUL = mDescriptorHelper->GetEssenceContainerUL();
@@ -487,6 +569,10 @@ void AvidTrack::CreateHeaderMetadata()
     // preface - ContentStorage - MaterialPackage
     mMaterialPackage = dynamic_cast<MaterialPackage*>(mClip->mMaterialPackage->clone(mHeaderMetadata));
     content_storage->appendPackages(mMaterialPackage);
+    if (mClip->mFlavour & AVID_GROWING_FILE_FLAVOUR) {
+        TaggedValue *bundle_tv = mMaterialPackage->appendAvidAttribute("_OMM_BUNDLE", "__AttributeList");
+        mOMMMobCompleteTaggedValue = bundle_tv->appendAvidAttribute("_OMM_MOB_COMPLETE", 0);
+    }
 
     // Preface - ContentStorage - SourcePackage
     mFileSourcePackage = new SourcePackage(mHeaderMetadata);
@@ -495,7 +581,9 @@ void AvidTrack::CreateHeaderMetadata()
     mFileSourcePackage->setPackageCreationDate(mClip->mCreationDate);
     mFileSourcePackage->setPackageModifiedDate(mClip->mCreationDate);
     if (!mClip->mProjectName.empty())
-        mFileSourcePackage->attachAvidAttribute("_PJ", mClip->mProjectName);
+        mFileSourcePackage->appendAvidAttribute("_PJ", mClip->mProjectName);
+    if (mClip->mFlavour & AVID_GROWING_FILE_FLAVOUR)
+        mEWCFileMobTaggedValue = mFileSourcePackage->appendAvidAttribute("_EWC_FILE_MOB", 1);
 
     // Preface - ContentStorage - SourcePackage - Timeline Track
     Track *track = new Track(mHeaderMetadata);
@@ -510,13 +598,13 @@ void AvidTrack::CreateHeaderMetadata()
     Sequence *sequence = new Sequence(mHeaderMetadata);
     track->setSequence(sequence);
     sequence->setDataDefinition(IsPicture() ? MXF_DDEF_L(Picture) : MXF_DDEF_L(Sound));
-    sequence->setDuration(-1); // updated when writing completed
+    sequence->setDuration(track_growing_duration); // updated when writing completed
 
     // Preface - ContentStorage - SourcePackage - Timeline Track - Sequence - SourceClip
     SourceClip *source_clip = new SourceClip(mHeaderMetadata);
     sequence->appendStructuralComponents(source_clip);
     source_clip->setDataDefinition(IsPicture() ? MXF_DDEF_L(Picture) : MXF_DDEF_L(Sound));
-    source_clip->setDuration(-1); // updated when writing completed
+    source_clip->setDuration(track_growing_duration); // updated when writing completed
     source_clip->setStartPosition(0); // could be updated by AvidClip
     source_clip->setSourceTrackID(mSourceRefTrackId);
     source_clip->setSourcePackageID(mSourceRefPackageUID);
@@ -524,6 +612,8 @@ void AvidTrack::CreateHeaderMetadata()
     // Preface - ContentStorage - SourcePackage - FileDescriptor
     FileDescriptor *descriptor = mDescriptorHelper->CreateFileDescriptor(mHeaderMetadata);
     mFileSourcePackage->setDescriptor(descriptor);
+    if (track_growing_duration >= 0)
+        descriptor->setContainerDuration(track_growing_duration);
     descriptor->setLinkedTrackID(AV_TRACK_ID);
     // replace essence container label with generic AAF-KLV (aka MXF) label
     descriptor->setEssenceContainer(MXF_EC_L(AvidAAFKLVEssenceContainer));
@@ -541,13 +631,18 @@ void AvidTrack::CreateHeaderMetadata()
     {
         mRefSourcePackage = dynamic_cast<SourcePackage*>(mClip->mPhysicalSourcePackage->clone(mHeaderMetadata));
         content_storage->appendPackages(mRefSourcePackage);
+        SetPhysicalSourceStartTimecode();
     }
 
     // Preface - Identification
     Identification *ident = new Identification(mHeaderMetadata);
     preface->appendIdentifications(ident);
     ident->initialise(mClip->mCompanyName, mClip->mProductName, mClip->mVersionString, mClip->mProductUID);
-    ident->setProductVersion(mClip->mProductVersion);
+    if (mClip->mProductVersion.major != 0 || mClip->mProductVersion.minor != 0 || mClip->mProductVersion.patch != 0 ||
+        mClip->mProductVersion.build != 0 || mClip->mProductVersion.release != 0)
+    {
+        ident->setProductVersion(mClip->mProductVersion);
+    }
     ident->setModificationDate(mClip->mCreationDate);
     ident->setThisGenerationUID(mClip->mGenerationUID);
     // ProductVersion type in AAF/Avid differs from MXF. The last record member (release aka type) is a uint8
@@ -563,19 +658,25 @@ void AvidTrack::CreateFile()
     mMXFFile->setMinLLen(LLEN);
 
 
+    // write header partition and essence partition pack to memory first
+
+    mMXFFile->openMemoryFile(8192);
+
+
     // write the header partition pack and header metadata
 
     Partition &header_partition = mMXFFile->createPartition();
-    header_partition.setKey(&MXF_PP_K(OpenIncomplete, Header));
+    if (mClip->mFlavour & AVID_GROWING_FILE_FLAVOUR)
+        header_partition.setKey(&MXF_PP_K(ClosedComplete, Header));
+    else
+        header_partition.setKey(&MXF_PP_K(OpenIncomplete, Header));
     header_partition.setIndexSID(0);
     header_partition.setBodySID(0);
     header_partition.setKagSize(0x100);
     header_partition.setOperationalPattern(&MXF_OP_L(atom, NTracks_NSourceClips));
     header_partition.addEssenceContainer(&mEssenceContainerUL);
     header_partition.write(mMXFFile);
-    header_partition.fillToKag(mMXFFile);
 
-    mHeaderMetadataStartPos = mMXFFile->tell(); // need this position when we re-write the header metadata
     PositionFillerWriter position_filler_writer(FIXED_BODY_PP_OFFSET);
     mHeaderMetadata->write(mMXFFile, &header_partition, &position_filler_writer);
 
@@ -584,7 +685,10 @@ void AvidTrack::CreateFile()
 
     int64_t file_pos = mMXFFile->tell();
     Partition &ess_partition = mMXFFile->createPartition();
-    ess_partition.setKey(&MXF_PP_K(OpenIncomplete, Body));
+    if (mClip->mFlavour & AVID_GROWING_FILE_FLAVOUR)
+        ess_partition.setKey(&MXF_PP_K(ClosedIncomplete, Footer));
+    else
+        ess_partition.setKey(&MXF_PP_K(OpenComplete, Body));
     ess_partition.setKagSize(IsPicture() ? 0x20000 : 0x1000);
     ess_partition.setIndexSID(0);
     ess_partition.setBodySID(mBodySID);
@@ -602,6 +706,109 @@ void AvidTrack::CreateFile()
     mMXFFile->writeFixedKL(&mEssenceElementKey, LLEN, 0);
 
 
+    // update partitions and flush memory
+
+    mMXFFile->updatePartitions();
+    mMXFFile->closeMemoryFile();
+
+
     PreSampleWriting();
+}
+
+void AvidTrack::SetPhysicalSourceStartTimecode()
+{
+    if (!mRefSourcePackage ||
+        !mRefSourcePackage->haveDescriptor() ||
+        !mDataModel->isSubclassOf(mRefSourcePackage->getDescriptor(), &MXF_SET_K(PhysicalDescriptor)))
+    {
+        return;
+    }
+
+    // get physical package start timecode
+    TimecodeComponent *phys_tc_component = GetTimecodeComponent(mRefSourcePackage);
+    if (!phys_tc_component)
+        return;
+    Timecode phys_start_timecode(phys_tc_component->getRoundedTimecodeBase(),
+                                 phys_tc_component->getDropFrame(),
+                                 phys_tc_component->getStartTimecode());
+
+    // convert to a offset at clip frame rate
+    uint16_t rounded_clip_tc_base = get_rounded_tc_base(mClip->mClipFrameRate);
+    int64_t phys_tc_start_offset = convert_position(phys_start_timecode.GetOffset(),
+                                                    rounded_clip_tc_base,
+                                                    phys_start_timecode.GetRoundedTCBase(),
+                                                    ROUND_AUTO);
+    int64_t clip_tc_start_offset = convert_position(mClip->mStartTimecode.GetOffset(),
+                                                    rounded_clip_tc_base,
+                                                    mClip->mStartTimecode.GetRoundedTCBase(),
+                                                    ROUND_AUTO);
+    int64_t start_position = clip_tc_start_offset - mOutputStartOffset - phys_tc_start_offset;
+    if (start_position < 0) {
+        // physical source's start timecode was > start timecode
+        log_warn("Not setting start timecode in file source package because start position was negative\n");
+        return;
+    }
+
+    // set the start position
+    vector<GenericTrack*> tracks = mFileSourcePackage->getTracks();
+    size_t j;
+    for (j = 0; j < tracks.size(); j++) {
+        Track *track = dynamic_cast<Track*>(tracks[j]);
+        if (!track)
+            continue;
+
+        StructuralComponent *track_sequence = track->getSequence();
+        mxfUL data_def = track_sequence->getDataDefinition();
+        if (!mxf_is_picture(&data_def) && !mxf_is_sound(&data_def))
+            continue;
+
+        Sequence *sequence = dynamic_cast<Sequence*>(track_sequence);
+        BMX_ASSERT(sequence);
+        vector<StructuralComponent*> components = sequence->getStructuralComponents();
+        BMX_ASSERT(components.size() == 1);
+        SourceClip *source_clip = dynamic_cast<SourceClip*>(components[0]);
+        BMX_ASSERT(source_clip);
+
+        source_clip->setStartPosition(convert_position(mClip->mClipFrameRate, start_position, track->getEditRate(),
+                                                       ROUND_AUTO));
+        break;
+    }
+
+    // set physical source timecode component's drop frame flag
+    phys_tc_component->setDropFrame(mClip->mStartTimecode.IsDropFrame());
+}
+
+TimecodeComponent* AvidTrack::GetTimecodeComponent(GenericPackage *package)
+{
+    // find the timecode component in this package
+    TimecodeComponent *tc_component = 0;
+    vector<GenericTrack*> tracks = package->getTracks();
+    size_t i;
+    for (i = 0; i < tracks.size(); i++) {
+        Track *track = dynamic_cast<Track*>(tracks[i]);
+        if (!track)
+            continue;
+
+        StructuralComponent *track_sequence = track->getSequence();
+        mxfUL data_def = track_sequence->getDataDefinition();
+        if (!mxf_is_timecode(&data_def))
+            continue;
+
+        Sequence *sequence = dynamic_cast<Sequence*>(track_sequence);
+        tc_component = dynamic_cast<TimecodeComponent*>(track_sequence);
+        if (sequence) {
+            vector<StructuralComponent*> components = sequence->getStructuralComponents();
+            size_t j;
+            for (j = 0; j < components.size(); j++) {
+                tc_component = dynamic_cast<TimecodeComponent*>(components[j]);
+                if (tc_component)
+                    break;
+            }
+        }
+        if (tc_component)
+            break;
+    }
+
+    return tc_component;
 }
 

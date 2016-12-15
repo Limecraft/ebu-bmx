@@ -29,14 +29,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_D10_TRACK_H__
-#define __BMX_D10_TRACK_H__
+#ifndef BMX_D10_TRACK_H_
+#define BMX_D10_TRACK_H_
 
 
 #include <libMXF++/MXF.h>
 
 #include <bmx/mxf_helper/MXFDescriptorHelper.h>
 #include <bmx/d10_mxf/D10ContentPackage.h>
+#include <bmx/frame/DataBufferArray.h>
 
 
 
@@ -61,6 +62,8 @@ public:
 
     virtual void SetOutputTrackNumber(uint32_t track_number);
 
+    MXFDescriptorHelper* GetMXFDescriptorHelper() { return mDescriptorHelper; }
+
 public:
     virtual void WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples);
 
@@ -83,6 +86,7 @@ protected:
 protected:
     virtual void PrepareWrite() = 0;
     virtual void WriteSamplesInt(const unsigned char *data, uint32_t size, uint32_t num_samples);
+    virtual void WriteSampleInt(const CDataBuffer *data_array, uint32_t array_size);
 
 protected:
     D10File *mD10File;

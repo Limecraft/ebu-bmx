@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_SEQUENCE_TRACK_READER_H__
-#define __BMX_MXF_SEQUENCE_TRACK_READER_H__
+#ifndef BMX_MXF_SEQUENCE_TRACK_READER_H_
+#define BMX_MXF_SEQUENCE_TRACK_READER_H_
 
 
 #include <bmx/mxf_reader/MXFTrackReader.h>
@@ -51,6 +51,8 @@ public:
     MXFSequenceTrackReader(MXFSequenceReader *sequence_reader, size_t track_index);
     virtual ~MXFSequenceTrackReader();
 
+    virtual void SetEmptyFrames(bool enable);
+
     bool IsCompatible(MXFTrackReader *segment) const;
     void AppendSegment(MXFTrackReader *segment);
 
@@ -64,18 +66,23 @@ public:
     virtual void SetFrameBuffer(FrameBuffer *frame_buffer, bool take_ownership);
 
 public:
-    virtual void GetAvailableReadLimits(int64_t *start_position, int64_t *duration) const;
+    virtual std::vector<size_t> GetFileIds(bool internal_ess_only) const;
+
+    virtual void GetReadLimits(bool limit_to_available, int64_t *start_position, int64_t *duration) const;
     virtual void SetReadLimits();
     virtual void SetReadLimits(int64_t start_position, int64_t duration, bool seek_start_position);
     virtual int64_t GetReadStartPosition() const { return mReadStartPosition; }
     virtual int64_t GetReadDuration() const      { return mReadDuration; }
 
     virtual uint32_t Read(uint32_t num_samples, bool is_top = true);
+    virtual bool ReadError() const               { return mReadError; }
+    virtual std::string ReadErrorMessage() const { return mReadErrorMessage; }
     virtual void Seek(int64_t position);
 
     virtual int64_t GetPosition() const       { return mPosition; }
-    virtual mxfRational GetSampleRate() const { return mSampleRate; }
+    virtual mxfRational GetEditRate() const   { return mEditRate; }
     virtual int64_t GetDuration() const       { return mDuration; }
+    virtual int64_t GetOrigin() const         { return mOrigin; }
 
     virtual bool GetIndexEntry(MXFIndexEntryExt *entry, int64_t position = CURRENT_POSITION_VALUE) const;
 
@@ -97,7 +104,7 @@ public:
 
 public:
     virtual MXFFrameBuffer* GetMXFFrameBuffer() { return &mFrameBuffer; }
-    virtual void SetNextFramePosition(int64_t position);
+    virtual void SetNextFramePosition(Rational edit_rate, int64_t position);
 
 private:
     void GetSegmentPosition(int64_t position, MXFTrackReader **segment, int64_t *segment_position) const;
@@ -111,14 +118,21 @@ private:
     mxfpp::FileDescriptor *mFileDescriptor;
     mxfpp::SourcePackage *mFileSourcePackage;
 
+    bool mEmptyFrames;
+    bool mEmptyFramesSet;
+
     bool mIsEnabled;
 
     int64_t mReadStartPosition;
     int64_t mReadDuration;
 
-    mxfRational mSampleRate;
+    mxfRational mEditRate;
     int64_t mPosition;
     int64_t mDuration;
+    int64_t mOrigin;
+
+    bool mReadError;
+    std::string mReadErrorMessage;
 
     std::vector<MXFTrackReader*> mTrackSegments;
     std::vector<int64_t> mSegmentOffsets;

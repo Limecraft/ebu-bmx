@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AS02_PCM_TRACK_H__
-#define __BMX_AS02_PCM_TRACK_H__
+#ifndef BMX_AS02_PCM_TRACK_H_
+#define BMX_AS02_PCM_TRACK_H_
 
 #include <bmx/as02/AS02Track.h>
 #include <bmx/mxf_helper/WaveMXFDescriptorHelper.h>
@@ -54,11 +54,13 @@ public:
     void SetAudioRefLevel(int8_t level);                // default not set
     void SetDialNorm(int8_t dial_norm);                 // default not set
     void SetSequenceOffset(uint8_t offset);             // default not set
+    void SetChannelAssignment(UL label);                // default not set
 
 public:
     const std::vector<uint32_t>& GetSampleSequence() const { return mSampleSequence; }
     uint8_t GetSequenceOffset() const { return mWaveDescriptorHelper->GetSequenceOffset(); }
     std::vector<uint32_t> GetShiftedSampleSequence() const;
+    uint32_t GetChannelCount() const;
 
 public:
     virtual void WriteSamples(const unsigned char *data, uint32_t size, uint32_t num_samples);

@@ -6,16 +6,19 @@ libmxfreader_la_SOURCES = \
 	FrameMetadataReader.cpp \
 	IndexTableHelper.cpp \
 	MXFAPPInfo.cpp \
+	MXFFileIndex.cpp \
 	MXFFileReader.cpp \
 	MXFFileTrackReader.cpp \
 	MXFFrameBuffer.cpp \
 	MXFFrameMetadata.cpp \
 	MXFGroupReader.cpp \
 	MXFIndexEntryExt.cpp \
+	MXFMCALabelIndex.cpp \
 	MXFPackageResolver.cpp \
 	MXFReader.cpp \
 	MXFSequenceReader.cpp \
 	MXFSequenceTrackReader.cpp \
+	MXFTextObject.cpp \
 	MXFTrackInfo.cpp
 
 libmxfreader_la_CXXFLAGS = $(BMX_CFLAGS)

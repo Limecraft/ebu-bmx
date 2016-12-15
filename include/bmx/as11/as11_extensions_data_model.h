@@ -29,7 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* Note: defines are undefined at the end of the file */
+/* Note: defines are undefined at the end of the file, unless KEEP_DATA_MODEL_DEFS defined */
 
 
 #if !defined (MXF_BASIC_TYPE_DEF)
@@ -127,6 +127,13 @@ MXF_SET_DEFINITION(DMFramework, AS11CoreFramework,
         0
     );
 
+    MXF_ITEM_DEFINITION(AS11CoreFramework, AS11ShimVersion,
+        MXF_LABEL(0x06, 0x0e, 0x2b, 0x34, 0x01, 0x01, 0x01, 0x01, 0x0d, 0x01, 0x07, 0x01, 0x0b, 0x01, 0x01, 0x0a),
+        0x0000,
+        MXF_VERSIONTYPE_TYPE,
+        1
+    );
+
 
 
 MXF_SET_DEFINITION(DMFramework, DMSegmentationFramework,
@@ -155,6 +162,7 @@ MXF_SET_DEFINITION(DMSegmentationFramework, AS11SegmentationFramework,
 
 
 
+#if !defined(KEEP_DATA_MODEL_DEFS)
 #undef MXF_BASIC_TYPE_DEF
 #undef MXF_ARRAY_TYPE_DEF
 #undef MXF_COMPOUND_TYPE_DEF
@@ -163,4 +171,5 @@ MXF_SET_DEFINITION(DMSegmentationFramework, AS11SegmentationFramework,
 #undef MXF_LABEL
 #undef MXF_SET_DEFINITION
 #undef MXF_ITEM_DEFINITION
+#endif
 

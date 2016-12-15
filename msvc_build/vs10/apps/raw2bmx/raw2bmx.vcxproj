@@ -43,17 +43,11 @@
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
-    <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
-    <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
-    <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
-    <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
-    <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
-    <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\;..\..\..\..\apps;..\..\..\..\..\ebu-libMXF;..\..\..\..\..\ebu-libMXFpp;..\..\..\..\..\uriparser\include;..\..\..\..\include;..;..\..\..\..\EBUCoreProcessor\include;..\..\..\..\..\msvc_build\dependencies\xerces-c-3.1.1-x86-windows-vc-10.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\;..\..\..\..\..\libMXF;..\..\..\..\..\libMXF++;..\..\..\..\..\uriparser\include;..\..\..\..\include;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -62,11 +56,10 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <PreprocessToFile>false</PreprocessToFile>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>libMXF.lib;libMXF++.lib;uriparser.lib;bmx.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\..\..\..\ebu-libMXF\msvc_build\vs10\mxf\Debug;..\..\..\..\..\ebu-libMXFpp\msvc_build\vs10\libMXF++\Debug;..\..\..\..\..\uriparser\win32;..\..\bmx\Debug;..\..\..\..\msvc_build\vs10\Debug;..\..\..\..\..\msvc_build\dependencies\xerces-c-3.1.1-x86-windows-vc-10.0\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libMXF.lib;libMXF++.lib;uriparser.lib;expat.lib;bmx.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\..\..\libMXF\msvc_build\vs10\mxf\Debug;..\..\..\..\..\libMXF++\msvc_build\vs10\libMXF++\Debug;..\..\uriparser\Debug;..\..\bmx\Debug;..\..\expat\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
@@ -74,7 +67,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\;..\..\..\..\apps;..\..\..\..\..\ebu-libMXF;..\..\..\..\..\ebu-libMXFpp;..\..\..\..\..\uriparser\include;..\..\..\..\include;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\;..\..\..\..\..\libMXF;..\..\..\..\..\libMXF++;..\..\..\..\..\uriparser\include;..\..\..\..\include;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PrecompiledHeader>
@@ -83,8 +76,8 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>libMXF.lib;libMXF++.lib;uriparser.lib;bmx.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\..\..\..\ebu-libMXF\msvc_build\vs10\mxf\Release;..\..\..\..\..\ebu-libMXFpp\msvc_build\vs10\libMXF++\Release;..\..\..\..\..\uriparser\win32;..\..\bmx\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libMXF.lib;libMXF++.lib;uriparser.lib;expat.lib;bmx.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\..\..\libMXF\msvc_build\vs10\mxf\Release;..\..\..\..\..\libMXF++\msvc_build\vs10\libMXF++\Release;..\..\uriparser\Release;..\..\bmx\Release;..\..\expat\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -93,13 +86,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\apps\AppUtils.cpp" />
-    <ClCompile Include="..\..\..\..\apps\AS11Helper.cpp" />
     <ClCompile Include="..\..\..\..\apps\raw2bmx\raw2bmx.cpp" />
+    <ClCompile Include="..\..\..\..\apps\raw2bmx\RawInputTrack.cpp" />
+    <ClCompile Include="..\..\..\..\apps\writers\InputTrack.cpp" />
+    <ClCompile Include="..\..\..\..\apps\writers\OutputTrack.cpp" />
+    <ClCompile Include="..\..\..\..\apps\writers\TrackMapper.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\apps\AppUtils.h" />
-    <ClInclude Include="..\..\..\..\apps\AS11Helper.h" />
+    <ClInclude Include="..\..\..\..\apps\raw2bmx\RawInputTrack.h" />
+    <ClInclude Include="..\..\..\..\apps\writers\InputTrack.h" />
+    <ClInclude Include="..\..\..\..\apps\writers\OutputTrack.h" />
+    <ClInclude Include="..\..\..\..\apps\writers\TrackMapper.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\bmx\bmx.vcxproj">

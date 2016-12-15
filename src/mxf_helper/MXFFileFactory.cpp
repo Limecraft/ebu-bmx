@@ -34,6 +34,7 @@
 #endif
 
 #include <bmx/mxf_helper/MXFFileFactory.h>
+#include <bmx/MXFHTTPFile.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -45,16 +46,30 @@ using namespace mxfpp;
 
 File* DefaultMXFFileFactory::OpenNew(string filename)
 {
-    return File::openNew(filename);
+    if (mxf_http_is_url(filename))
+        BMX_EXCEPTION(("HTTP file access is not supported for writing new files"));
+    else
+        return File::openNew(filename);
 }
 
 File* DefaultMXFFileFactory::OpenRead(string filename)
 {
-    return File::openRead(filename);
+    if (filename.empty()) {
+        MXFFile *mxf_file;
+        BMX_CHECK(mxf_stdin_wrap_read(&mxf_file));
+        return new File(mxf_file);
+    } else if (mxf_http_is_url(filename)) {
+        return new File(mxf_http_file_open_read(filename, 64 * 1024));
+    } else {
+        return File::openRead(filename);
+    }
 }
 
 File* DefaultMXFFileFactory::OpenModify(string filename)
 {
-    return File::openModify(filename);
+    if (mxf_http_is_url(filename))
+        BMX_EXCEPTION(("HTTP file access is not supported for modifying files"));
+    else
+        return File::openModify(filename);
 }
 

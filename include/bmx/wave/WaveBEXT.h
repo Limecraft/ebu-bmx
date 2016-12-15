@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_WAVE_BEXT_H__
-#define __BMX_WAVE_BEXT_H__
+#ifndef BMX_WAVE_BEXT_H_
+#define BMX_WAVE_BEXT_H_
 
 
 #include <vector>
@@ -66,6 +66,9 @@ public:
 
     void AppendCodingHistory(std::string line);             // default ""
     void AppendCodingHistory(std::vector<std::pair<std::string, std::string> > line);
+
+    uint32_t GetSize();
+    bool WasUpdated() { return mWasUpdated; }
 
     void Write(WaveIO *output);
 
@@ -108,6 +111,9 @@ private:
     int16_t mMaxShortTermLoudness;
 
     std::string mCodingHistory;
+
+    bool mWasUpdated;
+    uint32_t mWrittenSize;
 };
 
 

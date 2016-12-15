@@ -29,13 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_RAW_ESSENCE_READER_H__
-#define __BMX_RAW_ESSENCE_READER_H__
+#ifndef BMX_RAW_ESSENCE_READER_H_
+#define BMX_RAW_ESSENCE_READER_H_
 
-
-#include <cstdio>
 
 #include <bmx/essence_parser/EssenceParser.h>
+#include <bmx/essence_parser/EssenceSource.h>
 #include <bmx/ByteArray.h>
 
 
@@ -47,10 +46,9 @@ namespace bmx
 class RawEssenceReader
 {
 public:
-    RawEssenceReader(FILE *raw_input);
+    RawEssenceReader(EssenceSource *essence_source);
     virtual ~RawEssenceReader();
 
-    void SetStartOffset(int64_t offset);
     void SetMaxReadLength(int64_t len);
 
     void SetFixedSampleSize(uint32_t size);
@@ -60,11 +58,12 @@ public:
 
     uint32_t GetFixedSampleSize() const     { return mFixedSampleSize; }
     EssenceParser* GetEssenceParser() const { return mEssenceParser; }
+    EssenceSource* GetEssenceSource() const { return mEssenceSource; }
 
 public:
     virtual uint32_t ReadSamples(uint32_t num_samples);
 
-    virtual const unsigned char* GetSampleData() const  { return mSampleBuffer.GetBytes(); }
+    virtual unsigned char* GetSampleData() const        { return mSampleBuffer.GetBytes(); }
     uint32_t GetSampleDataSize() const                  { return mSampleDataSize; }
     uint32_t GetNumSamples() const                      { return mNumSamples; }
     uint32_t GetSampleSize() const;
@@ -77,9 +76,8 @@ protected:
     void ShiftSampleData(uint32_t to_offset, uint32_t from_offset);
 
 protected:
-    FILE *mRawInput;
+    EssenceSource *mEssenceSource;
 
-    int64_t mStartOffset;
     int64_t mMaxReadLength;
     int64_t mTotalReadLength;
     uint32_t mMaxSampleSize;

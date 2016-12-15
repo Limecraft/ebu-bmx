@@ -29,11 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __AVID_INFO_OUTPUT_H__
-#define __AVID_INFO_OUTPUT_H__
+#ifndef AVID_INFO_OUTPUT_H_
+#define AVID_INFO_OUTPUT_H_
 
 
 #include <bmx/mxf_reader/MXFFileReader.h>
+#include <bmx/apps/AppInfoWriter.h>
 
 
 
@@ -42,7 +43,7 @@ namespace bmx
 
 
 void avid_register_extensions(MXFFileReader *file_reader);
-void avid_print_info(MXFFileReader *file_reader);
+void avid_write_info(AppInfoWriter *info_writer, MXFFileReader *file_reader);
 
 
 

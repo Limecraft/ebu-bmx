@@ -57,6 +57,7 @@
 #include <cerrno>
 
 #include <bmx/MD5.h>
+#include <bmx/Utils.h>
 #include <bmx/BMXException.h>
 #include <bmx/Logging.h>
 
@@ -311,7 +312,7 @@ void bmx::md5_final(unsigned char digest[16], MD5Context *ctx)
     md5_transform(ctx->buf, (uint32_t *) ctx->in);
     byte_reverse((unsigned char *) ctx->buf, 4);
     memcpy(digest, ctx->buf, 16);
-    memset(ctx, 0, sizeof(ctx));        /* In case it's sensitive */
+    memset(ctx, 0, sizeof(*ctx));        /* In case it's sensitive */
 }
 
 string bmx::md5_digest_str(const unsigned char digest[16])
@@ -333,10 +334,21 @@ string bmx::md5_calc_file(string filename)
 {
     FILE *file = fopen(filename.c_str(), "rb");
     if (!file) {
-        log_warn("Failed to open file '%s' to calc md5: %s\n", filename.c_str(), strerror(errno));
+        log_warn("Failed to open file '%s' to calculate md5: %s\n", filename.c_str(), bmx_strerror(errno).c_str());
         return "";
     }
 
+    string result = md5_calc_file(file);
+    if (result.empty())
+        log_warn("Failed to calculate md5 for file '%s'\n", filename.c_str());
+
+    fclose(file);
+
+    return result;
+}
+
+string bmx::md5_calc_file(FILE *file)
+{
     MD5Context context;
     md5_init(&context);
 
@@ -345,15 +357,13 @@ string bmx::md5_calc_file(string filename)
     while (num_read == sizeof(buffer)) {
         num_read = fread(buffer, 1, sizeof(buffer), file);
         if (num_read != sizeof(buffer) && ferror(file)) {
-            log_warn("Failed to read from file '%s' to calc md5: %s\n", filename.c_str(), strerror(errno));
+            log_warn("Read failure when calculating md5: %s\n", bmx_strerror(errno).c_str());
             return "";
         }
 
         if (num_read > 0)
             md5_update(&context, buffer, (uint32_t)num_read);
     }
-
-    fclose(file);
 
     unsigned char digest[16];
     md5_final(digest, &context);

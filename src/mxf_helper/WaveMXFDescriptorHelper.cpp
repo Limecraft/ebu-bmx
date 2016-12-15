@@ -67,7 +67,7 @@ EssenceType WaveMXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor
 {
     mxfUL ec_label = file_descriptor->getEssenceContainer();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (CompareECULs(ec_label, alternative_ec_label, SUPPORTED_ESSENCE[i].ec_label))
             return SUPPORTED_ESSENCE[i].essence_type;
     }
@@ -78,7 +78,7 @@ EssenceType WaveMXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor
 bool WaveMXFDescriptorHelper::IsSupported(EssenceType essence_type)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (essence_type == SUPPORTED_ESSENCE[i].essence_type)
             return true;
     }
@@ -91,6 +91,8 @@ WaveMXFDescriptorHelper::WaveMXFDescriptorHelper()
 {
     mEssenceType = WAVE_PCM;
     mSequenceOffset = 0;
+    mUseAES3AudioDescriptor = false;
+    mChannelAssignment = g_Null_UL;
 }
 
 WaveMXFDescriptorHelper::~WaveMXFDescriptorHelper()
@@ -106,26 +108,54 @@ void WaveMXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uint16
 
     mxfUL ec_label = file_descriptor->getEssenceContainer();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (CompareECULs(ec_label, alternative_ec_label, SUPPORTED_ESSENCE[i].ec_label)) {
             mEssenceType = SUPPORTED_ESSENCE[i].essence_type;
             mFrameWrapped = SUPPORTED_ESSENCE[i].frame_wrapped;
             break;
         }
     }
-    BMX_ASSERT(i < ARRAY_SIZE(SUPPORTED_ESSENCE));
+    BMX_ASSERT(i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE));
 }
 
 void WaveMXFDescriptorHelper::SetSequenceOffset(uint8_t offset)
 {
-    BMX_ASSERT(!mFileDescriptor);
-
     mSequenceOffset = offset;
+
+    if (mFileDescriptor) {
+        WaveAudioDescriptor *wav_descriptor = dynamic_cast<WaveAudioDescriptor*>(mFileDescriptor);
+        BMX_ASSERT(wav_descriptor);
+        if ((!wav_descriptor->haveSequenceOffset() && mSequenceOffset != 0) ||
+            ( wav_descriptor->haveSequenceOffset() && mSequenceOffset != wav_descriptor->getSequenceOffset()))
+        {
+            wav_descriptor->setSequenceOffset(mSequenceOffset);
+        }
+    }
+}
+
+void WaveMXFDescriptorHelper::SetUseAES3AudioDescriptor(bool enable)
+{
+    BMX_ASSERT(!mFileDescriptor);
+    mUseAES3AudioDescriptor = enable;
+}
+
+void WaveMXFDescriptorHelper::SetChannelAssignment(mxfUL label)
+{
+    mChannelAssignment = label;
 }
 
 FileDescriptor* WaveMXFDescriptorHelper::CreateFileDescriptor(mxfpp::HeaderMetadata *header_metadata)
 {
-    mFileDescriptor = new WaveAudioDescriptor(header_metadata);
+    if ((mFlavour & MXFDESC_RDD9_FLAVOUR) ||
+        (mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR) ||
+        mUseAES3AudioDescriptor)
+    {
+        mFileDescriptor = new AES3AudioDescriptor(header_metadata);
+    }
+    else
+    {
+        mFileDescriptor = new WaveAudioDescriptor(header_metadata);
+    }
     UpdateFileDescriptor();
     return mFileDescriptor;
 }
@@ -138,10 +168,47 @@ void WaveMXFDescriptorHelper::UpdateFileDescriptor()
     BMX_ASSERT(wav_descriptor);
 
     uint32_t sample_size = GetSampleSize();
+    if ((mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR))
+        wav_descriptor->setSoundEssenceCompression(MXF_CMDEF_L(UNDEFINED_SOUND));
+    if (mChannelAssignment != g_Null_UL)
+        wav_descriptor->setChannelAssignment(mChannelAssignment);
     wav_descriptor->setBlockAlign(sample_size);
     wav_descriptor->setAvgBps(sample_size * mSamplingRate.numerator / mSamplingRate.denominator);
     if (mSequenceOffset > 0)
         wav_descriptor->setSequenceOffset(mSequenceOffset);
+    if ((mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR)) { // Note: this trumps RDD9 flavour
+        // Professional use, linear PCM, no emphasis, 48KHz sampling, CRCC value 60
+        static const mxfAES3FixedData fixed_channel_status_data =
+        {
+            {
+                0x85, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60
+            }
+        };
+
+        AES3AudioDescriptor *aes3_descriptor = dynamic_cast<AES3AudioDescriptor*>(mFileDescriptor);
+        BMX_ASSERT(aes3_descriptor);
+
+        aes3_descriptor->appendChannelStatusMode(2); // STANDARD mode
+        aes3_descriptor->appendFixedChannelStatusData(fixed_channel_status_data);
+    } else if ((mFlavour & MXFDESC_RDD9_FLAVOUR)) {
+        // Professional use, linear PCM, no emphasis, 48KHz sampling
+        static const mxfAES3FixedData fixed_channel_status_data =
+        {
+            {
+                0x85, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            }
+        };
+
+        AES3AudioDescriptor *aes3_descriptor = dynamic_cast<AES3AudioDescriptor*>(mFileDescriptor);
+        BMX_ASSERT(aes3_descriptor);
+
+        aes3_descriptor->appendChannelStatusMode(1); // MINIMUM mode
+        aes3_descriptor->appendFixedChannelStatusData(fixed_channel_status_data);
+    }
 }
 
 uint32_t WaveMXFDescriptorHelper::GetSampleSize()
@@ -151,9 +218,21 @@ uint32_t WaveMXFDescriptorHelper::GetSampleSize()
 
 mxfUL WaveMXFDescriptorHelper::ChooseEssenceContainerUL() const
 {
-    if (mFrameWrapped)
-        return MXF_EC_L(BWFFrameWrapped);
+    if ((mFlavour & MXFDESC_RDD9_FLAVOUR) ||
+        (mFlavour & MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR) ||
+        mUseAES3AudioDescriptor)
+    {
+        if (mFrameWrapped)
+            return MXF_EC_L(AES3FrameWrapped);
+        else
+            return MXF_EC_L(AES3ClipWrapped);
+    }
     else
-        return MXF_EC_L(BWFClipWrapped);
+    {
+        if (mFrameWrapped)
+            return MXF_EC_L(BWFFrameWrapped);
+        else
+            return MXF_EC_L(BWFClipWrapped);
+    }
 }
 

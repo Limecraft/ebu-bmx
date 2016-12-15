@@ -29,8 +29,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MD5_H__
-#define __BMX_MD5_H__
+#ifndef BMX_MD5_H_
+#define BMX_MD5_H_
+
+#include <cstdio>
 
 #include <string>
 
@@ -58,6 +60,7 @@ void md5_final(unsigned char digest[16], MD5Context *ctx);
 std::string md5_digest_str(const unsigned char digest[16]);
 
 std::string md5_calc_file(std::string filename);
+std::string md5_calc_file(FILE *file);
 
 
 };

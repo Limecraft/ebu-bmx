@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MPEG2LG_MXF_DESCRIPTOR_HELPER_H__
-#define __BMX_MPEG2LG_MXF_DESCRIPTOR_HELPER_H__
+#ifndef BMX_MPEG2LG_MXF_DESCRIPTOR_HELPER_H_
+#define BMX_MPEG2LG_MXF_DESCRIPTOR_HELPER_H_
 
 
 #include <bmx/mxf_helper/PictureMXFDescriptorHelper.h>
@@ -66,6 +66,9 @@ public:
 
     virtual mxfpp::FileDescriptor* CreateFileDescriptor(mxfpp::HeaderMetadata *header_metadata);
     virtual void UpdateFileDescriptor();
+
+public:
+    MXFFrameLayout GetFrameLayout() const;
 
 protected:
     virtual mxfUL ChooseEssenceContainerUL() const;

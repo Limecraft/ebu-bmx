@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AS02_VERSION_H__
-#define __BMX_AS02_VERSION_H__
+#ifndef BMX_AS02_VERSION_H_
+#define BMX_AS02_VERSION_H_
 
 #include <vector>
 #include <set>
@@ -60,6 +60,9 @@ public:
     virtual void PrepareWrite();
     virtual void CompleteWrite();
 
+    virtual UniqueIdHelper* GetTrackIdHelper()  { return &mTrackIdHelper; }
+    virtual UniqueIdHelper* GetStreamIdHelper() { return &mStreamIdHelper; }
+
 private:
     AS02Version(AS02Bundle *bundle, std::string filepath, std::string rel_uri, mxfpp::File *mxf_file,
                 mxfRational frame_rate);
@@ -76,7 +79,6 @@ private:
 
     mxfpp::DataModel *mDataModel;
     mxfpp::HeaderMetadata *mHeaderMetadata;
-    int64_t mHeaderMetadataStartPos;
     int64_t mHeaderMetadataEndPos;
 
     std::set<mxfUL> mEssenceContainerULs;
@@ -84,6 +86,9 @@ private:
     mxfpp::MaterialPackage *mMaterialPackage;
 
     std::vector<mxfpp::SourcePackage*> mFilePackages;
+
+    UniqueIdHelper mTrackIdHelper;
+    UniqueIdHelper mStreamIdHelper;
 };
 
 

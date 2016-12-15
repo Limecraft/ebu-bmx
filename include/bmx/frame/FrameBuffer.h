@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_FRAME_BUFFER_H__
-#define __BMX_FRAME_BUFFER_H__
+#ifndef BMX_FRAME_BUFFER_H_
+#define BMX_FRAME_BUFFER_H_
 
 #include <deque>
 
@@ -48,6 +48,10 @@ public:
     virtual ~FrameBuffer() {};
 
     virtual void SetFrameFactory(FrameFactory *frame_factory, bool take_ownership) = 0;
+
+    virtual void StartRead() = 0;
+    virtual void CompleteRead() = 0;
+    virtual void AbortRead() = 0;
 
     virtual Frame* CreateFrame() = 0;
 
@@ -70,6 +74,10 @@ public:
 
     virtual void SetFrameFactory(FrameFactory *frame_factory, bool take_ownership);
 
+    virtual void StartRead();
+    virtual void CompleteRead();
+    virtual void AbortRead();
+
     virtual Frame* CreateFrame();
 
     virtual void PushFrame(Frame *frame);
@@ -84,6 +92,7 @@ private:
     FrameFactory *mFrameFactory;
     bool mOwnFrameFactory;
     std::deque<Frame*> mFrames;
+    size_t mStartReadIndex;
 };
 
 

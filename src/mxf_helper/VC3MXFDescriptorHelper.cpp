@@ -54,9 +54,12 @@ typedef struct
     EssenceType essence_type;
     int32_t resolution_id;
     uint32_t component_depth;
+    uint32_t horiz_subsampling;
     uint32_t frame_size;
     uint32_t stored_width;
     uint32_t stored_height;
+    uint32_t display_width;
+    uint32_t display_height;
     int32_t video_line_map[2];
     uint8_t frame_layout;
     uint8_t signal_standard;
@@ -66,16 +69,20 @@ typedef struct
 
 static const SupportedEssence SUPPORTED_ESSENCE[] =
 {
-    {MXF_CMDEF_L(VC3_1080P_1235),  VC3_1080P_1235, 1235,   10, 917504, 1920,   1080,   {42, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080p1235ClipWrapped)},
-    {MXF_CMDEF_L(VC3_1080P_1237),  VC3_1080P_1237, 1237,   8,  606208, 1920,   1080,   {42, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080p1237ClipWrapped)},
-    {MXF_CMDEF_L(VC3_1080P_1238),  VC3_1080P_1238, 1238,   8,  917504, 1920,   1080,   {42, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080p1238ClipWrapped)},
-    {MXF_CMDEF_L(VC3_1080I_1241),  VC3_1080I_1241, 1241,   10, 917504, 1920,   540,    {21, 584},  MXF_SEPARATE_FIELDS,  MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080i1241ClipWrapped)},
-    {MXF_CMDEF_L(VC3_1080I_1242),  VC3_1080I_1242, 1242,   8,  606208, 1920,   540,    {21, 584},  MXF_SEPARATE_FIELDS,  MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080i1242ClipWrapped)},
-    {MXF_CMDEF_L(VC3_1080I_1243),  VC3_1080I_1243, 1243,   8,  917504, 1920,   540,    {21, 584},  MXF_SEPARATE_FIELDS,  MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080i1243ClipWrapped)},
-    {MXF_CMDEF_L(VC3_720P_1250),   VC3_720P_1250,  1250,   10, 458752, 1280,   720,    {26, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE296M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD720p1250ClipWrapped)},
-    {MXF_CMDEF_L(VC3_720P_1251),   VC3_720P_1251,  1251,   8,  458752, 1280,   720,    {26, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE296M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD720p1251ClipWrapped)},
-    {MXF_CMDEF_L(VC3_720P_1252),   VC3_720P_1252,  1252,   8,  303104, 1280,   720,    {26, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE296M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD720p1252ClipWrapped)},
-    {MXF_CMDEF_L(VC3_1080P_1253),  VC3_1080P_1253, 1253,   8,  188416, 1920,   1080,   {42, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080p1253ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080P_1235),  VC3_1080P_1235, 1235,   10,  2,  917504,  1920,   1080,   1920,   1080,   {42, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080p1235ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080P_1237),  VC3_1080P_1237, 1237,   8,   2,  606208,  1920,   1080,   1920,   1080,   {42, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080p1237ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080P_1238),  VC3_1080P_1238, 1238,   8,   2,  917504,  1920,   1080,   1920,   1080,   {42, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080p1238ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080I_1241),  VC3_1080I_1241, 1241,   10,  2,  917504,  1920,   540,    1920,   540,    {21, 584},  MXF_SEPARATE_FIELDS,  MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080i1241ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080I_1242),  VC3_1080I_1242, 1242,   8,   2,  606208,  1920,   540,    1920,   540,    {21, 584},  MXF_SEPARATE_FIELDS,  MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080i1242ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080I_1243),  VC3_1080I_1243, 1243,   8,   2,  917504,  1920,   540,    1920,   540,    {21, 584},  MXF_SEPARATE_FIELDS,  MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080i1243ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080I_1244),  VC3_1080I_1244, 1244,   8,   2,  606208,  1440,   540,    1920,   540,    {21, 584},  MXF_SEPARATE_FIELDS,  MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080i1244ClipWrapped)},
+    {MXF_CMDEF_L(VC3_720P_1250),   VC3_720P_1250,  1250,   10,  2,  458752,  1280,   720,    1280,   720,    {26, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE296M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD720p1250ClipWrapped)},
+    {MXF_CMDEF_L(VC3_720P_1251),   VC3_720P_1251,  1251,   8,   2,  458752,  1280,   720,    1280,   720,    {26, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE296M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD720p1251ClipWrapped)},
+    {MXF_CMDEF_L(VC3_720P_1252),   VC3_720P_1252,  1252,   8,   2,  303104,  1280,   720,    1280,   720,    {26, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE296M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD720p1252ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080P_1253),  VC3_1080P_1253, 1253,   8,   2,  188416,  1920,   1080,   1920,   1080,   {42, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080p1253ClipWrapped)},
+    {MXF_CMDEF_L(VC3_720P_1258),   VC3_720P_1258,  1258,   8,   2,  212992,  960,    720,    1280,   720,    {26, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE296M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD720p1258ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080P_1259),  VC3_1080P_1259, 1259,   8,   2,  417792,  1440,   1080,   1920,   1080,   {42, 0},    MXF_FULL_FRAME,       MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080p1259ClipWrapped)},
+    {MXF_CMDEF_L(VC3_1080I_1260),  VC3_1080I_1260, 1260,   8,   2,  417792,  1440,   540,    1920,   540,    {21, 584},  MXF_SEPARATE_FIELDS,  MXF_SIGNAL_STANDARD_SMPTE274M,    MXF_CMDEF_L(DNxHD), MXF_EC_L(DNxHD1080i1260ClipWrapped)},
 };
 
 
@@ -99,7 +106,7 @@ EssenceType VC3MXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor,
 
     mxfUL pc_label = pic_descriptor->getPictureEssenceCoding();
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (mxf_equals_ul_mod_regver(&pc_label, &SUPPORTED_ESSENCE[i].pc_label))
             return SUPPORTED_ESSENCE[i].essence_type;
     }
@@ -110,7 +117,7 @@ EssenceType VC3MXFDescriptorHelper::IsSupported(FileDescriptor *file_descriptor,
 bool VC3MXFDescriptorHelper::IsSupported(EssenceType essence_type)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (essence_type == SUPPORTED_ESSENCE[i].essence_type)
             return true;
     }
@@ -121,11 +128,11 @@ bool VC3MXFDescriptorHelper::IsSupported(EssenceType essence_type)
 bool VC3MXFDescriptorHelper::IsAvidDNxHD(FileDescriptor *file_descriptor, mxfUL alternative_ec_label, size_t *index)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (mxf_equals_ul_mod_regver(&alternative_ec_label, &SUPPORTED_ESSENCE[i].avid_ec_label))
             break;
     }
-    if (i >= ARRAY_SIZE(SUPPORTED_ESSENCE))
+    if (i >= BMX_ARRAY_SIZE(SUPPORTED_ESSENCE))
         return false;
 
     GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
@@ -169,7 +176,7 @@ void VC3MXFDescriptorHelper::Initialize(FileDescriptor *file_descriptor, uint16_
         GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
         mxfUL pc_label = pic_descriptor->getPictureEssenceCoding();
         size_t i;
-        for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+        for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
             if (mxf_equals_ul_mod_regver(&pc_label, &SUPPORTED_ESSENCE[i].pc_label)) {
                 mEssenceIndex = i;
                 mEssenceType = SUPPORTED_ESSENCE[i].essence_type;
@@ -185,14 +192,14 @@ void VC3MXFDescriptorHelper::SetEssenceType(EssenceType essence_type)
     BMX_ASSERT(!mFileDescriptor);
 
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (SUPPORTED_ESSENCE[i].essence_type == essence_type) {
             mEssenceIndex = i;
             mAvidResolutionId = SUPPORTED_ESSENCE[i].resolution_id;
             break;
         }
     }
-    BMX_CHECK(i < ARRAY_SIZE(SUPPORTED_ESSENCE));
+    BMX_CHECK(i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE));
 
     PictureMXFDescriptorHelper::SetEssenceType(essence_type);
 }
@@ -211,13 +218,13 @@ void VC3MXFDescriptorHelper::UpdateFileDescriptor()
     CDCIEssenceDescriptor *cdci_descriptor = dynamic_cast<CDCIEssenceDescriptor*>(mFileDescriptor);
     BMX_ASSERT(cdci_descriptor);
 
-    if (mFlavour == AVID_FLAVOUR)
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR))
         cdci_descriptor->setPictureEssenceCoding(SUPPORTED_ESSENCE[mEssenceIndex].avid_pc_label);
     else
         cdci_descriptor->setPictureEssenceCoding(SUPPORTED_ESSENCE[mEssenceIndex].pc_label);
     cdci_descriptor->setSignalStandard(SUPPORTED_ESSENCE[mEssenceIndex].signal_standard);
     cdci_descriptor->setFrameLayout(SUPPORTED_ESSENCE[mEssenceIndex].frame_layout);
-    SetColorSiting(MXF_COLOR_SITING_REC601);
+    SetColorSitingMod(MXF_COLOR_SITING_REC601);
     cdci_descriptor->setComponentDepth(SUPPORTED_ESSENCE[mEssenceIndex].component_depth);
     if (SUPPORTED_ESSENCE[mEssenceIndex].component_depth == 10) {
         cdci_descriptor->setBlackRefLevel(64);
@@ -228,18 +235,24 @@ void VC3MXFDescriptorHelper::UpdateFileDescriptor()
         cdci_descriptor->setWhiteReflevel(235);
         cdci_descriptor->setColorRange(225);
     }
-    SetCodingEquations(ITUR_BT709_CODING_EQ);
+    SetCodingEquationsMod(ITUR_BT709_CODING_EQ);
     cdci_descriptor->setStoredWidth(SUPPORTED_ESSENCE[mEssenceIndex].stored_width);
     cdci_descriptor->setStoredHeight(SUPPORTED_ESSENCE[mEssenceIndex].stored_height);
-    cdci_descriptor->setDisplayWidth(cdci_descriptor->getStoredWidth());
-    cdci_descriptor->setDisplayHeight(cdci_descriptor->getStoredHeight());
-    cdci_descriptor->setSampledWidth(cdci_descriptor->getStoredWidth());
-    cdci_descriptor->setSampledHeight(cdci_descriptor->getStoredHeight());
+    cdci_descriptor->setDisplayWidth(SUPPORTED_ESSENCE[mEssenceIndex].display_width);
+    cdci_descriptor->setDisplayHeight(SUPPORTED_ESSENCE[mEssenceIndex].display_height);
+    cdci_descriptor->setSampledWidth(cdci_descriptor->getDisplayWidth());
+    cdci_descriptor->setSampledHeight(cdci_descriptor->getDisplayHeight());
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR)) {
+        cdci_descriptor->setSampledXOffset(0);
+        cdci_descriptor->setSampledYOffset(0);
+        cdci_descriptor->setDisplayXOffset(0);
+        cdci_descriptor->setDisplayYOffset(0);
+    }
     cdci_descriptor->appendVideoLineMap(SUPPORTED_ESSENCE[mEssenceIndex].video_line_map[0]);
     cdci_descriptor->appendVideoLineMap(SUPPORTED_ESSENCE[mEssenceIndex].video_line_map[1]);
-    cdci_descriptor->setHorizontalSubsampling(2);
+    cdci_descriptor->setHorizontalSubsampling(SUPPORTED_ESSENCE[mEssenceIndex].horiz_subsampling);
     cdci_descriptor->setVerticalSubsampling(1);
-    if (mFlavour == AVID_FLAVOUR)
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR))
         cdci_descriptor->setImageAlignmentOffset(8192);
 }
 
@@ -250,7 +263,7 @@ uint32_t VC3MXFDescriptorHelper::GetSampleSize()
 
 mxfUL VC3MXFDescriptorHelper::ChooseEssenceContainerUL() const
 {
-    if (mFlavour == AVID_FLAVOUR) {
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR)) {
         BMX_ASSERT(!mFrameWrapped);
         return SUPPORTED_ESSENCE[mEssenceIndex].avid_ec_label;
     } else {

@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_SEQUENCE_READER_H__
-#define __BMX_MXF_SEQUENCE_READER_H__
+#ifndef BMX_MXF_SEQUENCE_READER_H_
+#define BMX_MXF_SEQUENCE_READER_H_
 
 #include <vector>
 
@@ -49,13 +49,22 @@ public:
     MXFSequenceReader();
     virtual ~MXFSequenceReader();
 
+    virtual void SetEmptyFrames(bool enable);
+    virtual void SetFileIndex(MXFFileIndex *file_index, bool take_ownership);
+
     void AddReader(MXFReader *reader);
     bool Finalize(bool check_is_complete, bool keep_input_order);
 
     void UpdateReadLimits();
 
 public:
-    virtual void GetAvailableReadLimits(int64_t *start_position, int64_t *duration) const;
+    virtual MXFFileReader* GetFileReader(size_t file_id);
+    virtual std::vector<size_t> GetFileIds(bool internal_ess_only) const;
+
+    virtual bool IsComplete() const;
+    virtual bool IsSeekable() const;
+
+    virtual void GetReadLimits(bool limit_to_available, int64_t *start_position, int64_t *duration) const;
     virtual void SetReadLimits();
     virtual void SetReadLimits(int64_t start_position, int64_t duration, bool seek_start_position);
     virtual int64_t GetReadStartPosition() const { return mReadStartPosition; }
@@ -83,8 +92,14 @@ public:
     virtual int16_t GetTrackRollout(size_t track_index, int64_t clip_position, int16_t clip_rollout) const;
 
 public:
-    virtual void SetNextFramePosition(int64_t position);
+    virtual size_t GetNumTextObjects() const { return mTextObjects.size(); }
+    virtual MXFTextObject* GetTextObject(size_t index) const;
+
+public:
+    virtual void SetNextFramePosition(Rational edit_rate, int64_t position);
     virtual void SetNextFrameTrackPositions();
+
+    virtual void SetTemporaryFrameBuffer(bool enable);
 
 private:
     bool FindSequenceStart(const std::vector<MXFGroupReader*> &group_readers, size_t *seq_start_index) const;
@@ -93,10 +108,15 @@ private:
                             int64_t *segment_position) const;
 
 private:
+    bool mEmptyFrames;
+    bool mEmptyFramesSet;
+
     std::vector<bmx::MXFReader*> mReaders;
     std::vector<bmx::MXFGroupReader*> mGroupSegments;
 
     std::vector<bmx::MXFSequenceTrackReader*> mTrackReaders;
+
+    std::vector<MXFTextObject*> mTextObjects;
 
     int64_t mReadStartPosition;
     int64_t mReadDuration;

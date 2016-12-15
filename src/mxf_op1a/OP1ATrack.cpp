@@ -39,13 +39,17 @@
 
 #include <bmx/mxf_op1a/OP1ATrack.h>
 #include <bmx/mxf_op1a/OP1AFile.h>
+#include <bmx/mxf_op1a/OP1AANCDataTrack.h>
 #include <bmx/mxf_op1a/OP1ADVTrack.h>
 #include <bmx/mxf_op1a/OP1AD10Track.h>
 #include <bmx/mxf_op1a/OP1AAVCITrack.h>
+#include <bmx/mxf_op1a/OP1AAVCTrack.h>
 #include <bmx/mxf_op1a/OP1AUncTrack.h>
 #include <bmx/mxf_op1a/OP1AMPEG2LGTrack.h>
 #include <bmx/mxf_op1a/OP1AVC3Track.h>
 #include <bmx/mxf_op1a/OP1APCMTrack.h>
+#include <bmx/mxf_op1a/OP1AVBIDataTrack.h>
+#include <bmx/mxf_op1a/OP1AVC2Track.h>
 #include <bmx/MXFUtils.h>
 #include <bmx/Utils.h>
 #include <bmx/BMXException.h>
@@ -69,41 +73,64 @@ static const OP1ASampleRateSupport OP1A_SAMPLE_RATE_SUPPORT[] =
     {DVBASED_DV25,             {{25, 1}, {30000, 1001}, {0, 0}}},
     {DV50,                     {{25, 1}, {30000, 1001}, {0, 0}}},
     {DV100_1080I,              {{25, 1}, {30000, 1001}, {0, 0}}},
-    {DV100_720P,               {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {DV100_720P,               {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {D10_30,                   {{25, 1}, {30000, 1001}, {0, 0}}},
     {D10_40,                   {{25, 1}, {30000, 1001}, {0, 0}}},
     {D10_50,                   {{25, 1}, {30000, 1001}, {0, 0}}},
+    {AVCI200_1080I,            {{25, 1}, {30000, 1001}, {0, 0}}},
+    {AVCI200_1080P,            {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI200_720P,             {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {AVCI100_1080I,            {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI100_1080P,            {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI100_720P,             {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI100_1080P,            {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI100_720P,             {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {AVCI50_1080I,             {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI50_1080P,             {{25, 1}, {30000, 1001}, {0, 0}}},
-    {AVCI50_720P,              {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI50_1080P,             {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVCI50_720P,              {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {AVC_BASELINE,             {{-1, -1}, {0, 0}}},
+    {AVC_CONSTRAINED_BASELINE, {{-1, -1}, {0, 0}}},
+    {AVC_MAIN,                 {{-1, -1}, {0, 0}}},
+    {AVC_EXTENDED,             {{-1, -1}, {0, 0}}},
+    {AVC_HIGH,                 {{-1, -1}, {0, 0}}},
+    {AVC_HIGH_10,              {{-1, -1}, {0, 0}}},
+    {AVC_HIGH_422,             {{-1, -1}, {0, 0}}},
+    {AVC_HIGH_444,             {{-1, -1}, {0, 0}}},
+    {AVC_HIGH_10_INTRA,        {{-1, -1}, {0, 0}}},
+    {AVC_HIGH_422_INTRA,       {{-1, -1}, {0, 0}}},
+    {AVC_HIGH_444_INTRA,       {{-1, -1}, {0, 0}}},
+    {AVC_CAVLC_444_INTRA,      {{-1, -1}, {0, 0}}},
     {UNC_SD,                   {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {UNC_HD_1080I,             {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {UNC_HD_1080P,             {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {UNC_HD_720P,              {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {UNC_HD_1080P,             {{25, 1}, {30000, 1001}, {30, 1}, {50, 1}, {60000, 1001}, {60, 1}, {0, 0}}},
+    {UNC_HD_720P,              {{25, 1}, {30000, 1001}, {30, 1}, {50, 1}, {60000, 1001}, {60, 1}, {0, 0}}},
+    {UNC_UHD_3840,             {{-1, -1}, {0, 0}}},
     {MPEG2LG_422P_HL_1080I,    {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_422P_HL_1080P,    {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_422P_HL_720P,     {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {MPEG2LG_422P_HL_1080P,    {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_422P_HL_720P,     {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {MPEG2LG_MP_HL_1920_1080I, {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_HL_1920_1080P, {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_HL_1920_1080P, {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
     {MPEG2LG_MP_HL_1440_1080I, {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_HL_1440_1080P, {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_HL_720P,       {{24000, 1001}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_HL_1440_1080P, {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_HL_720P,       {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
     {MPEG2LG_MP_H14_1080I,     {{25, 1}, {30000, 1001}, {0, 0}}},
-    {MPEG2LG_MP_H14_1080P,     {{24000, 1001}, {25, 1}, {30000, 1001}, {0, 0}}},
-    {VC3_1080P_1235,           {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {VC3_1080P_1237,           {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {VC3_1080P_1238,           {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {VC3_1080I_1241,           {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {VC3_1080I_1242,           {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {VC3_1080I_1243,           {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {VC3_720P_1250,            {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {VC3_720P_1251,            {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {VC3_720P_1252,            {{25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
-    {VC3_1080P_1253,           {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {50, 1}, {60000, 1001}, {0, 0}}},
+    {MPEG2LG_MP_H14_1080P,     {{24000, 1001}, {24, 1}, {25, 1}, {30000, 1001}, {0, 0}}},
+    {VC2,                      {{-1, -1}, {0, 0}}},
+    {VC3_1080P_1235,           {{-1, -1}, {0, 0}}},
+    {VC3_1080P_1237,           {{-1, -1}, {0, 0}}},
+    {VC3_1080P_1238,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1241,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1242,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1243,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1244,           {{-1, -1}, {0, 0}}},
+    {VC3_720P_1250,            {{-1, -1}, {0, 0}}},
+    {VC3_720P_1251,            {{-1, -1}, {0, 0}}},
+    {VC3_720P_1252,            {{-1, -1}, {0, 0}}},
+    {VC3_1080P_1253,           {{-1, -1}, {0, 0}}},
+    {VC3_720P_1258,            {{-1, -1}, {0, 0}}},
+    {VC3_1080P_1259,           {{-1, -1}, {0, 0}}},
+    {VC3_1080I_1260,           {{-1, -1}, {0, 0}}},
     {WAVE_PCM,                 {{48000, 1}, {0, 0}}},
+    {ANC_DATA,                 {{-1, -1}, {0, 0}}},
+    {VBI_DATA,                 {{-1, -1}, {0, 0}}},
 };
 
 
@@ -111,8 +138,11 @@ static const OP1ASampleRateSupport OP1A_SAMPLE_RATE_SUPPORT[] =
 bool OP1ATrack::IsSupported(EssenceType essence_type, mxfRational sample_rate)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(OP1A_SAMPLE_RATE_SUPPORT); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(OP1A_SAMPLE_RATE_SUPPORT); i++) {
         if (essence_type == OP1A_SAMPLE_RATE_SUPPORT[i].essence_type) {
+            if (OP1A_SAMPLE_RATE_SUPPORT[i].sample_rate[0].numerator < 0)
+                return true;
+
             size_t j = 0;
             while (OP1A_SAMPLE_RATE_SUPPORT[i].sample_rate[j].numerator) {
                 if (sample_rate == OP1A_SAMPLE_RATE_SUPPORT[i].sample_rate[j])
@@ -140,6 +170,9 @@ OP1ATrack* OP1ATrack::Create(OP1AFile *file, uint32_t track_index, uint32_t trac
         case D10_40:
         case D10_50:
             return new OP1AD10Track(file, track_index, track_id, track_type_number, frame_rate, essence_type);
+        case AVCI200_1080I:
+        case AVCI200_1080P:
+        case AVCI200_720P:
         case AVCI100_1080I:
         case AVCI100_1080P:
         case AVCI100_720P:
@@ -147,10 +180,24 @@ OP1ATrack* OP1ATrack::Create(OP1AFile *file, uint32_t track_index, uint32_t trac
         case AVCI50_1080P:
         case AVCI50_720P:
             return new OP1AAVCITrack(file, track_index, track_id, track_type_number, frame_rate, essence_type);
+        case AVC_BASELINE:
+        case AVC_CONSTRAINED_BASELINE:
+        case AVC_MAIN:
+        case AVC_EXTENDED:
+        case AVC_HIGH:
+        case AVC_HIGH_10:
+        case AVC_HIGH_422:
+        case AVC_HIGH_444:
+        case AVC_HIGH_10_INTRA:
+        case AVC_HIGH_422_INTRA:
+        case AVC_HIGH_444_INTRA:
+        case AVC_CAVLC_444_INTRA:
+            return new OP1AAVCTrack(file, track_index, track_id, track_type_number, frame_rate, essence_type);
         case UNC_SD:
         case UNC_HD_1080I:
         case UNC_HD_1080P:
         case UNC_HD_720P:
+        case UNC_UHD_3840:
             return new OP1AUncTrack(file, track_index, track_id, track_type_number, frame_rate, essence_type);
         case MPEG2LG_422P_HL_1080I:
         case MPEG2LG_422P_HL_1080P:
@@ -163,19 +210,29 @@ OP1ATrack* OP1ATrack::Create(OP1AFile *file, uint32_t track_index, uint32_t trac
         case MPEG2LG_MP_H14_1080I:
         case MPEG2LG_MP_H14_1080P:
             return new OP1AMPEG2LGTrack(file, track_index, track_id, track_type_number, frame_rate, essence_type);
+        case VC2:
+            return new OP1AVC2Track(file, track_index, track_id, track_type_number, frame_rate);
         case VC3_1080P_1235:
         case VC3_1080P_1237:
         case VC3_1080P_1238:
         case VC3_1080I_1241:
         case VC3_1080I_1242:
         case VC3_1080I_1243:
+        case VC3_1080I_1244:
         case VC3_720P_1250:
         case VC3_720P_1251:
         case VC3_720P_1252:
         case VC3_1080P_1253:
+        case VC3_720P_1258:
+        case VC3_1080P_1259:
+        case VC3_1080I_1260:
             return new OP1AVC3Track(file, track_index, track_id, track_type_number, frame_rate, essence_type);
         case WAVE_PCM:
             return new OP1APCMTrack(file, track_index, track_id, track_type_number, frame_rate, essence_type);
+        case ANC_DATA:
+            return new OP1AANCDataTrack(file, track_index, track_id, track_type_number, frame_rate, essence_type);
+        case VBI_DATA:
+            return new OP1AVBIDataTrack(file, track_index, track_id, track_type_number, frame_rate, essence_type);
         default:
             BMX_ASSERT(false);
     }
@@ -194,18 +251,27 @@ OP1ATrack::OP1ATrack(OP1AFile *file, uint32_t track_index, uint32_t track_id, ui
     mOutputTrackNumber = 0;
     mOutputTrackNumberSet = false;
     mTrackTypeNumber = track_type_number;
-    mIsPicture = true;
+    mDataDef = convert_essence_type_to_data_def(essence_type);
     mFrameRate = frame_rate;
+    mEditRate = frame_rate;
     mTrackNumber = 0;
     mHaveLowerLevelSourcePackage = false;
     mLowerLevelSourcePackage = 0;
     mLowerLevelSourcePackageUID = g_Null_UMID;
     mLowerLevelTrackId = 0;
 
+    int descriptor_flavour = 0;
+    if ((file->mFlavour & OP1A_377_2004_FLAVOUR))
+        descriptor_flavour |= MXFDESC_SMPTE_377_2004_FLAVOUR;
+    else
+        descriptor_flavour |= MXFDESC_SMPTE_377_1_FLAVOUR;
+    if ((file->mFlavour & OP1A_ARD_ZDF_HDF_PROFILE_FLAVOUR))
+        descriptor_flavour |= MXFDESC_ARD_ZDF_HDF_PROFILE_FLAVOUR;
+
     mEssenceType = essence_type;
     mDescriptorHelper = MXFDescriptorHelper::Create(essence_type);
-    mDescriptorHelper->SetFlavour(MXFDescriptorHelper::SMPTE_377_1_FLAVOUR);
-    mDescriptorHelper->SetFrameWrapped(true);
+    mDescriptorHelper->SetFlavour(descriptor_flavour);
+    mDescriptorHelper->SetFrameWrapped(file->IsFrameWrapped());
     mDescriptorHelper->SetSampleRate(frame_rate);
 }
 
@@ -274,7 +340,8 @@ int64_t OP1ATrack::GetContainerDuration() const
 void OP1ATrack::AddHeaderMetadata(HeaderMetadata *header_metadata, MaterialPackage *material_package,
                                   SourcePackage *file_source_package)
 {
-    mxfUL data_def = (mIsPicture ? MXF_DDEF_L(Picture) : MXF_DDEF_L(Sound));
+    mxfUL data_def_ul;
+    BMX_CHECK(mxf_get_ddef_label(mDataDef, &data_def_ul));
 
     int64_t material_track_duration = -1; // unknown - could be updated if not writing in a single pass
     int64_t source_track_duration = -1; // unknown - could be updated if not writing in a single pass
@@ -291,22 +358,25 @@ void OP1ATrack::AddHeaderMetadata(HeaderMetadata *header_metadata, MaterialPacka
     // Preface - ContentStorage - MaterialPackage - Timeline Track
     Track *track = new Track(header_metadata);
     material_package->appendTracks(track);
-    track->setTrackName(get_track_name(mIsPicture, mOutputTrackNumber));
+    track->setTrackName(get_track_name(mDataDef, mOutputTrackNumber));
     track->setTrackID(mTrackId);
-    track->setTrackNumber(mOutputTrackNumber);
-    track->setEditRate(mFrameRate);
+    if ((mOP1AFile->GetFlavour() & OP1A_MP_TRACK_NUMBER_FLAVOUR))
+        track->setTrackNumber(mOutputTrackNumber);
+    else
+        track->setTrackNumber(0);
+    track->setEditRate(mEditRate);
     track->setOrigin(0);
 
     // Preface - ContentStorage - MaterialPackage - Timeline Track - Sequence
     Sequence *sequence = new Sequence(header_metadata);
     track->setSequence(sequence);
-    sequence->setDataDefinition(data_def);
+    sequence->setDataDefinition(data_def_ul);
     sequence->setDuration(material_track_duration);
 
     // Preface - ContentStorage - MaterialPackage - Timeline Track - Sequence - SourceClip
     SourceClip *source_clip = new SourceClip(header_metadata);
     sequence->appendStructuralComponents(source_clip);
-    source_clip->setDataDefinition(data_def);
+    source_clip->setDataDefinition(data_def_ul);
     source_clip->setDuration(material_track_duration);
     source_clip->setStartPosition(0);
     source_clip->setSourcePackageID(file_source_package->getPackageUID());
@@ -316,22 +386,22 @@ void OP1ATrack::AddHeaderMetadata(HeaderMetadata *header_metadata, MaterialPacka
     // Preface - ContentStorage - SourcePackage - Timeline Track
     track = new Track(header_metadata);
     file_source_package->appendTracks(track);
-    track->setTrackName(get_track_name(mIsPicture, mOutputTrackNumber));
+    track->setTrackName(get_track_name(mDataDef, mOutputTrackNumber));
     track->setTrackID(mTrackId);
     track->setTrackNumber(mTrackNumber);
-    track->setEditRate(mFrameRate);
+    track->setEditRate(mEditRate);
     track->setOrigin(source_track_origin);
 
     // Preface - ContentStorage - SourcePackage - Timeline Track - Sequence
     sequence = new Sequence(header_metadata);
     track->setSequence(sequence);
-    sequence->setDataDefinition(data_def);
+    sequence->setDataDefinition(data_def_ul);
     sequence->setDuration(source_track_duration);
 
     // Preface - ContentStorage - SourcePackage - Timeline Track - Sequence - SourceClip
     source_clip = new SourceClip(header_metadata);
     sequence->appendStructuralComponents(source_clip);
-    source_clip->setDataDefinition(data_def);
+    source_clip->setDataDefinition(data_def_ul);
     source_clip->setDuration(source_track_duration);
     source_clip->setStartPosition(0);
     if (mHaveLowerLevelSourcePackage) {
@@ -371,6 +441,13 @@ void OP1ATrack::WriteSamplesInt(const unsigned char *data, uint32_t size, uint32
     BMX_ASSERT(data && size && num_samples);
 
     mCPManager->WriteSamples(mTrackIndex, data, size, num_samples);
+}
+
+void OP1ATrack::WriteSampleInt(const CDataBuffer *data_array, uint32_t array_size)
+{
+    BMX_ASSERT(data_array && array_size);
+
+    mCPManager->WriteSample(mTrackIndex, data_array, array_size);
 }
 
 void OP1ATrack::CompleteEssenceKeyAndTrackNum(uint8_t track_count)

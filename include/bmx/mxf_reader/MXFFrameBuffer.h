@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_MXF_FRAME_BUFFER_H__
-#define __BMX_MXF_FRAME_BUFFER_H__
+#ifndef BMX_MXF_FRAME_BUFFER_H_
+#define BMX_MXF_FRAME_BUFFER_H_
 
 #include <bmx/frame/FrameBuffer.h>
 
@@ -46,13 +46,20 @@ public:
     MXFFrameBuffer();
     virtual ~MXFFrameBuffer();
 
+    void SetEmptyFrames(bool enable);
+
     void SetTargetBuffer(FrameBuffer *target_buffer, bool take_ownership);
 
-    void SetNextFramePosition(int64_t position);
-    void SetNextFrameTrackPosition(int64_t position);
+    void SetNextFramePosition(Rational edit_rate, int64_t position);
+    void SetNextFrameTrackPosition(Rational edit_rate, int64_t position);
+
+    void SetTemporaryBuffer(bool enable);
 
 public:
     virtual void SetFrameFactory(FrameFactory *frame_factory, bool take_ownership);
+    virtual void StartRead();
+    virtual void CompleteRead();
+    virtual void AbortRead();
     virtual Frame* CreateFrame();
     virtual void PushFrame(Frame *frame);
     virtual void PopFrame(bool del_frame);
@@ -61,10 +68,15 @@ public:
     virtual void Clear(bool del_frames);
 
 private:
+    bool mEmptyFrames;
     FrameBuffer *mTargetBuffer;
     bool mOwnTargetBuffer;
+    Rational mNextFrameEditRate;
     int64_t mNextFramePosition;
+    Rational mNextFrameTrackEditRate;
     int64_t mNextFrameTrackPosition;
+    DefaultFrameBuffer mTemporaryBuffer;
+    bool mUseTemporaryBuffer;
 };
 
 

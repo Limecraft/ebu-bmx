@@ -6,14 +6,14 @@ Distributor: Rick Distributors
 PictureRatio: 16/9
 ThreeD: false
 ProductPlacement: true
-FPAPass: 1
-FPAManufacturer: Harding
-FPAVersion: 1.0 alpha
-SecondaryAudioLanguage: eng
-TertiaryAudioLanguage: eng
+PSEPass: 1
+PSEManufacturer: Harding
+PSEVersion: 1.0 alpha
+SecondaryAudioLanguage: zxx
+TertiaryAudioLanguage: zxx
 AudioLoudnessStandard: 0
-LineUpStart: 10:11:12:00
-IdentClockStart: 10:11:12:05
+LineUpStart: 09:58:00:00
+IdentClockStart: 09:58:00:10
 AudioDescriptionPresent: false
 OpenCaptionsPresent: false
 SigningPresent: 1

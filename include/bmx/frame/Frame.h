@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_FRAME_H__
-#define __BMX_FRAME_H__
+#ifndef BMX_FRAME_H_
+#define BMX_FRAME_H_
 
 
 #include <map>
@@ -57,6 +57,8 @@ public:
 
     const char* GetId() const { return mId; }
 
+    virtual FrameMetadata* Clone() = 0;
+
 protected:
     const char *mId;
 };
@@ -66,6 +68,7 @@ class Frame
 {
 public:
     Frame();
+    Frame(const Frame &from);
     virtual ~Frame();
 
     virtual uint32_t GetSize() const = 0;
@@ -77,18 +80,25 @@ public:
     virtual void SetSize(uint32_t size) = 0;
     virtual void IncrementSize(uint32_t inc) = 0;
 
+    virtual Frame* Clone() = 0;
+
 public:
-    bool IsEmpty() const { return num_samples == 0; }
+    bool IsEmpty() const    { return num_samples == 0; }
+    bool IsComplete() const { return num_samples == request_num_samples; }
 
     const std::map<std::string, std::vector<FrameMetadata*> >& GetMetadata() const { return mMetadata; }
     const std::vector<FrameMetadata*>* GetMetadata(std::string id) const;
     void InsertMetadata(FrameMetadata *metadata);
 
 public:
+    Rational edit_rate;
     int64_t position;
+
+    Rational track_edit_rate;
     int64_t track_position;
     int64_t ec_position;
 
+    uint32_t request_num_samples;
     uint32_t first_sample_offset;
     uint32_t num_samples;
 
@@ -97,8 +107,12 @@ public:
     int8_t key_frame_offset;
     uint8_t flags;
 
-    int64_t cp_file_position;
-    int64_t file_position;
+    int64_t cp_file_position;   // position of first KLV in content package
+    int64_t file_position;      // frame wrapped: position of KLV; clip wrapped: position of sample data
+    uint8_t kl_size;            // frame wrapped: size of KL; clip wrapped: 0
+    size_t file_id;             // file index identifier for file containing sample data
+
+    mxfKey element_key;
 
 protected:
     std::map<std::string, std::vector<FrameMetadata*> > mMetadata;
@@ -128,6 +142,8 @@ public:
     virtual unsigned char* GetBytesAvailable() const;
     virtual void SetSize(uint32_t size);
     virtual void IncrementSize(uint32_t inc);
+
+    virtual Frame* Clone();
 
 private:
     ByteArray mData;

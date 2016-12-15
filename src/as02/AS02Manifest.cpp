@@ -41,7 +41,7 @@
 
 #include <bmx/as02/AS02Manifest.h>
 #include <bmx/as02/AS02Bundle.h>
-#include <bmx/MD5.h>
+#include <bmx/Checksum.h>
 #include <bmx/XMLUtils.h>
 #include <bmx/Utils.h>
 #include <bmx/BMXException.h>
@@ -106,7 +106,7 @@ static const MICScopeNameMap MIC_SCOPE_NAME_MAP[] =
 static string get_xml_file_role_name(FileRole role)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(FILE_ROLE_NAME_MAP); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(FILE_ROLE_NAME_MAP); i++) {
         if (FILE_ROLE_NAME_MAP[i].role == role)
             return FILE_ROLE_NAME_MAP[i].name;
     }
@@ -118,7 +118,7 @@ static string get_xml_file_role_name(FileRole role)
 static string get_xml_mic_type_name(MICType type)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(MIC_TYPE_NAME_MAP); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(MIC_TYPE_NAME_MAP); i++) {
         if (MIC_TYPE_NAME_MAP[i].type == type)
             return MIC_TYPE_NAME_MAP[i].name;
     }
@@ -130,7 +130,7 @@ static string get_xml_mic_type_name(MICType type)
 static string get_xml_mic_scope_name(MICScope scope)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(MIC_SCOPE_NAME_MAP); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(MIC_SCOPE_NAME_MAP); i++) {
         if (MIC_SCOPE_NAME_MAP[i].scope == scope)
             return MIC_SCOPE_NAME_MAP[i].name;
     }
@@ -251,11 +251,16 @@ void AS02ManifestFile::CompleteInfo(AS02Bundle *bundle, MICType default_mic_type
 
         // get file sizes
         if (mRole != FOLDER_FILE_ROLE) {
+#if defined(_WIN32)
+            struct _stati64 stat_buf;
+            if (_stati64(complete_path.c_str(), &stat_buf) == 0)
+#else
             struct stat stat_buf;
             if (stat(complete_path.c_str(), &stat_buf) == 0)
+#endif
                 mSize = stat_buf.st_size;
             else
-                log_warn("Failed to stat '%s' for size: %s\n", complete_path.c_str(), strerror(errno));
+                log_warn("Failed to stat '%s' for size: %s\n", complete_path.c_str(), bmx_strerror(errno).c_str());
         }
 
         // calculate checksum for entire files if not done so already
@@ -265,7 +270,7 @@ void AS02ManifestFile::CompleteInfo(AS02Bundle *bundle, MICType default_mic_type
 
         if (mMIC.empty() && mic_scope == ENTIRE_FILE_MIC_SCOPE && mRole != FOLDER_FILE_ROLE) {
             if (mic_type == MD5_MIC_TYPE) {
-                SetMIC(mic_type, mic_scope, md5_calc_file(complete_path));
+                SetMIC(mic_type, mic_scope, Checksum::CalcFileChecksum(complete_path, MD5_CHECKSUM));
                 if (mMIC.empty())
                     log_warn("Failed to calc MD5 for '%s'\n", complete_path.c_str());
             }

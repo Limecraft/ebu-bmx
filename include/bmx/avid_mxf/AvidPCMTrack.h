@@ -29,8 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BMX_AVID_PCM_TRACK_H__
-#define __BMX_AVID_PCM_TRACK_H__
+#ifndef BMX_AVID_PCM_TRACK_H_
+#define BMX_AVID_PCM_TRACK_H_
 
 #include <bmx/avid_mxf/AvidTrack.h>
 #include <bmx/mxf_helper/WaveMXFDescriptorHelper.h>
@@ -61,6 +61,7 @@ public:
     const std::vector<uint32_t>& GetSampleSequence() const { return mSampleSequence; }
     uint8_t GetSequenceOffset() const { return mWaveDescriptorHelper->GetSequenceOffset(); }
     std::vector<uint32_t> GetShiftedSampleSequence() const;
+    uint32_t GetChannelCount() const;
 
 public:
     virtual int64_t GetOutputDuration(bool clip_frame_rate) const;

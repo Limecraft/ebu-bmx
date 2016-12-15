@@ -103,6 +103,9 @@ static const SupportedEssence SUPPORTED_ESSENCE[] =
     {MXF_EC_L(HD_Unc_720_60p_422_FrameWrapped),         UNC_HD_720P,  false,  {60, 1},         true,   1280,   720,    0,  {26, 0},    MXF_FULL_FRAME,     MXF_SIGNAL_STANDARD_SMPTE296M,   ITUR_BT709_CODING_EQ,  0x00},
     {MXF_EC_L(HD_Unc_720_60p_422_ClipWrapped),          UNC_HD_720P,  false,  {60, 1},         false,  1280,   720,    0,  {26, 0},    MXF_FULL_FRAME,     MXF_SIGNAL_STANDARD_SMPTE296M,   ITUR_BT709_CODING_EQ,  0x00},
 
+    {MXF_EC_L(Unc_FrameWrapped),                        UNC_UHD_3840, false,  {-1, -1},        true,   3840,   2160,   0,  {1, 0},     MXF_FULL_FRAME,     MXF_SIGNAL_STANDARD_NONE,        g_Null_UL,             0x00},
+    {MXF_EC_L(Unc_ClipWrapped),                         UNC_UHD_3840, false,  {-1, -1},        false,  3840,   2160,   0,  {1, 0},     MXF_FULL_FRAME,     MXF_SIGNAL_STANDARD_NONE,        g_Null_UL,             0x00},
+
     {MXF_EC_L(AvidUnc10Bit625ClipWrapped),              AVID_10BIT_UNC_SD,       true,  {25, 1},         false,  720,    576,    16, {23, 336},  MXF_MIXED_FIELDS,   MXF_SIGNAL_STANDARD_ITU601,      ITUR_BT601_CODING_EQ,   0x07e6},
     {MXF_EC_L(AvidUnc10Bit525ClipWrapped),              AVID_10BIT_UNC_SD,       true,  {30000, 1001},   false,  720,    486,    10, {21, 283},  MXF_MIXED_FIELDS,   MXF_SIGNAL_STANDARD_ITU601,      ITUR_BT601_CODING_EQ,   0x07e5},
     {MXF_EC_L(AvidUnc10Bit1080iClipWrapped),            AVID_10BIT_UNC_HD_1080I, true,  {25, 1},         false,  1920,   1080,   0,  {21, 584},  MXF_MIXED_FIELDS,   MXF_SIGNAL_STANDARD_SMPTE274M,   ITUR_BT709_CODING_EQ,   0x07d0},
@@ -129,7 +132,7 @@ EssenceType UncCDCIMXFDescriptorHelper::IsSupported(FileDescriptor *file_descrip
 bool UncCDCIMXFDescriptorHelper::IsSupported(EssenceType essence_type)
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (essence_type == SUPPORTED_ESSENCE[i].essence_type)
             return true;
     }
@@ -139,13 +142,43 @@ bool UncCDCIMXFDescriptorHelper::IsSupported(EssenceType essence_type)
 
 size_t UncCDCIMXFDescriptorHelper::GetEssenceIndex(FileDescriptor *file_descriptor, mxfUL alternative_ec_label)
 {
-    mxfRational sample_rate = file_descriptor->getSampleRate();
+    mxfRational sample_rate = normalize_rate(file_descriptor->getSampleRate());
     mxfUL ec_label = file_descriptor->getEssenceContainer();
 
+    GenericPictureEssenceDescriptor *pic_descriptor = dynamic_cast<GenericPictureEssenceDescriptor*>(file_descriptor);
+    if (!pic_descriptor)
+        return (size_t)(-1);
+
+    uint32_t display_width = 0;
+    if (pic_descriptor->haveDisplayWidth())
+        display_width = pic_descriptor->getDisplayWidth();
+    else if (pic_descriptor->haveStoredWidth())
+        display_width = pic_descriptor->getStoredWidth();
+    if (display_width == 0)
+        return (size_t)(-1);
+
+    uint32_t display_height = 0;
+    if (pic_descriptor->haveDisplayHeight())
+        display_height = pic_descriptor->getDisplayHeight();
+    else if (pic_descriptor->haveStoredHeight())
+        display_height = pic_descriptor->getStoredHeight();
+    if (display_height == 0)
+        return (size_t)(-1);
+
+    uint8_t frame_layout = MXF_SEPARATE_FIELDS;
+    if (pic_descriptor->haveFrameLayout())
+        frame_layout = pic_descriptor->getFrameLayout();
+
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
-        if (SUPPORTED_ESSENCE[i].sample_rate != sample_rate)
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+        if (SUPPORTED_ESSENCE[i].display_width  != display_width ||
+            SUPPORTED_ESSENCE[i].display_height != display_height ||
+            SUPPORTED_ESSENCE[i].frame_layout   != frame_layout ||
+            (SUPPORTED_ESSENCE[i].sample_rate.numerator != -1 &&
+               SUPPORTED_ESSENCE[i].sample_rate != sample_rate))
+        {
             continue;
+        }
 
         if (CompareECULs(ec_label, alternative_ec_label, SUPPORTED_ESSENCE[i].ec_label))
         {
@@ -358,22 +391,25 @@ void UncCDCIMXFDescriptorHelper::UpdateFileDescriptor()
     cdci_descriptor->setComponentDepth(mComponentDepth);
     cdci_descriptor->setHorizontalSubsampling(2);
     cdci_descriptor->setVerticalSubsampling(1);
-    SetColorSiting(MXF_COLOR_SITING_REC601);
+    if ((mFlavour & MXFDESC_AVID_FLAVOUR) || (mFlavour & MXFDESC_SMPTE_377_2004_FLAVOUR))
+        SetColorSitingMod(MXF_COLOR_SITING_REC601);
+    else
+        SetColorSitingMod(MXF_COLOR_SITING_COSITING);
     cdci_descriptor->setFrameLayout(SUPPORTED_ESSENCE[mEssenceIndex].frame_layout);
-    if (mFlavour != AVID_FLAVOUR &&
+    if (!(mFlavour & MXFDESC_AVID_FLAVOUR) &&
         SUPPORTED_ESSENCE[mEssenceIndex].frame_layout == MXF_MIXED_FIELDS)
     {
         cdci_descriptor->setFieldDominance(1); // field 1
     }
 
     if (mComponentDepth == 8) {
-        if (mFlavour != AVID_FLAVOUR)
+        if (!(mFlavour & MXFDESC_AVID_FLAVOUR))
             cdci_descriptor->setPictureEssenceCoding(MXF_CMDEF_L(UNC_8B_422_INTERLEAVED));
         cdci_descriptor->setBlackRefLevel(16);
         cdci_descriptor->setWhiteReflevel(235);
         cdci_descriptor->setColorRange(225);
     } else {
-        if (mFlavour == AVID_FLAVOUR) {
+        if ((mFlavour & MXFDESC_AVID_FLAVOUR)) {
             if (mEssenceType == AVID_10BIT_UNC_SD)
                 cdci_descriptor->setPictureEssenceCoding(MXF_CMDEF_L(AvidUncSD10Bit));
             else
@@ -386,9 +422,12 @@ void UncCDCIMXFDescriptorHelper::UpdateFileDescriptor()
         cdci_descriptor->setColorRange(897);
     }
 
-    if (mFlavour != AVID_FLAVOUR || (mEssenceType != UNC_SD && mEssenceType != AVID_10BIT_UNC_SD))
-        SetCodingEquations(SUPPORTED_ESSENCE[mEssenceIndex].coding_eq);
-    if (mFlavour != AVID_FLAVOUR)
+    if (!mxf_equals_ul(&SUPPORTED_ESSENCE[mEssenceIndex].coding_eq, &g_Null_UL) &&
+        (!(mFlavour & MXFDESC_AVID_FLAVOUR) || (mEssenceType != UNC_SD && mEssenceType != AVID_10BIT_UNC_SD)))
+    {
+        SetCodingEquationsMod(SUPPORTED_ESSENCE[mEssenceIndex].coding_eq);
+    }
+    if (!(mFlavour & MXFDESC_AVID_FLAVOUR))
         cdci_descriptor->setSignalStandard(SUPPORTED_ESSENCE[mEssenceIndex].signal_standard);
     cdci_descriptor->appendVideoLineMap(mVideoLineMap[0]);
     cdci_descriptor->appendVideoLineMap(mVideoLineMap[1]);
@@ -396,23 +435,23 @@ void UncCDCIMXFDescriptorHelper::UpdateFileDescriptor()
     cdci_descriptor->setStoredHeight(mStoredHeight);
     cdci_descriptor->setDisplayWidth(mDisplayWidth);
     cdci_descriptor->setDisplayHeight(mDisplayHeight);
-    if (mDisplayXOffset != 0 || mFlavour == AVID_FLAVOUR)
+    if (mDisplayXOffset != 0 || (mFlavour & MXFDESC_AVID_FLAVOUR))
         cdci_descriptor->setDisplayXOffset(mDisplayXOffset);
-    if (mDisplayYOffset != 0 || mFlavour == AVID_FLAVOUR)
+    if (mDisplayYOffset != 0 || (mFlavour & MXFDESC_AVID_FLAVOUR))
         cdci_descriptor->setDisplayYOffset(mDisplayYOffset);
     cdci_descriptor->setSampledWidth(mSampledWidth);
     cdci_descriptor->setSampledHeight(mSampledHeight);
-    if (mSampledXOffset != 0 || mFlavour == AVID_FLAVOUR)
+    if (mSampledXOffset != 0 || (mFlavour & MXFDESC_AVID_FLAVOUR))
         cdci_descriptor->setSampledXOffset(mSampledXOffset);
-    if (mSampledYOffset != 0 || mFlavour == AVID_FLAVOUR)
+    if (mSampledYOffset != 0 || (mFlavour & MXFDESC_AVID_FLAVOUR))
         cdci_descriptor->setSampledYOffset(mSampledYOffset);
 }
 
 uint32_t UncCDCIMXFDescriptorHelper::GetImageAlignmentOffset()
 {
-    if (mImageAlignmentOffsetSet)
+    if (BMX_OPT_PROP_IS_SET(mImageAlignmentOffset))
         return mImageAlignmentOffset;
-    else if (mFlavour == AVID_FLAVOUR)
+    else if ((mFlavour & MXFDESC_AVID_FLAVOUR))
         return AVID_IMAGE_ALIGNMENT;
     else
         return 1;
@@ -420,9 +459,9 @@ uint32_t UncCDCIMXFDescriptorHelper::GetImageAlignmentOffset()
 
 uint32_t UncCDCIMXFDescriptorHelper::GetImageStartOffset()
 {
-    if (mImageStartOffsetSet)
+    if (BMX_OPT_PROP_IS_SET(mImageStartOffset))
         return mImageStartOffset;
-    else if (mFlavour != AVID_FLAVOUR)
+    else if (!(mFlavour & MXFDESC_AVID_FLAVOUR))
         return 0;
 
     uint32_t image_alignment = GetImageAlignmentOffset();
@@ -459,16 +498,17 @@ mxfUL UncCDCIMXFDescriptorHelper::ChooseEssenceContainerUL() const
 bool UncCDCIMXFDescriptorHelper::UpdateEssenceIndex()
 {
     size_t i;
-    for (i = 0; i < ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
+    for (i = 0; i < BMX_ARRAY_SIZE(SUPPORTED_ESSENCE); i++) {
         if (SUPPORTED_ESSENCE[i].essence_type == mEssenceType &&
-            SUPPORTED_ESSENCE[i].sample_rate == mSampleRate &&
+            (SUPPORTED_ESSENCE[i].sample_rate.numerator == -1 ||
+                SUPPORTED_ESSENCE[i].sample_rate == mSampleRate) &&
             SUPPORTED_ESSENCE[i].frame_wrapped == mFrameWrapped)
         {
             mEssenceIndex = i;
             mAvidResolutionId = SUPPORTED_ESSENCE[i].avid_resolution_id;
             if (SUPPORTED_ESSENCE[i].is_avid_10bit)
                 mComponentDepth = 10;
-            else if (mFlavour == AVID_FLAVOUR)
+            else if ((mFlavour & MXFDESC_AVID_FLAVOUR))
                 mComponentDepth = 8;
             SetDefaultDimensions();
             return true;
@@ -486,7 +526,7 @@ void UncCDCIMXFDescriptorHelper::SetDefaultDimensions()
         else
             mStoredWidth = (SUPPORTED_ESSENCE[mEssenceIndex].display_width + 47) / 48 * 48;
         mStoredHeight = SUPPORTED_ESSENCE[mEssenceIndex].display_height;
-        if (mFlavour == AVID_FLAVOUR)
+        if ((mFlavour & MXFDESC_AVID_FLAVOUR))
             mStoredHeight += SUPPORTED_ESSENCE[mEssenceIndex].avid_display_y_offset;
     }
     if (!mDisplayDimensionsSet) {
@@ -499,7 +539,7 @@ void UncCDCIMXFDescriptorHelper::SetDefaultDimensions()
             mDisplayWidth   = SUPPORTED_ESSENCE[mEssenceIndex].display_width;
             mDisplayHeight  = SUPPORTED_ESSENCE[mEssenceIndex].display_height;
             mDisplayXOffset = 0;
-            if (mFlavour == AVID_FLAVOUR)
+            if ((mFlavour & MXFDESC_AVID_FLAVOUR))
                 mDisplayYOffset = SUPPORTED_ESSENCE[mEssenceIndex].avid_display_y_offset;
             else
                 mDisplayYOffset = 0;
@@ -514,7 +554,7 @@ void UncCDCIMXFDescriptorHelper::SetDefaultDimensions()
         } else {
             mSampledWidth  = SUPPORTED_ESSENCE[mEssenceIndex].display_width;
             mSampledHeight = SUPPORTED_ESSENCE[mEssenceIndex].display_height;
-            if (mFlavour == AVID_FLAVOUR)
+            if ((mFlavour & MXFDESC_AVID_FLAVOUR))
                 mSampledHeight += SUPPORTED_ESSENCE[mEssenceIndex].avid_display_y_offset;
             mSampledXOffset = 0;
             mSampledYOffset = 0;
@@ -524,7 +564,7 @@ void UncCDCIMXFDescriptorHelper::SetDefaultDimensions()
     if (!mVideoLineMapSet) {
         mVideoLineMap[0] = SUPPORTED_ESSENCE[mEssenceIndex].video_line_map[0];
         mVideoLineMap[1] = SUPPORTED_ESSENCE[mEssenceIndex].video_line_map[1];
-        if (mFlavour == AVID_FLAVOUR) {
+        if ((mFlavour & MXFDESC_AVID_FLAVOUR)) {
             if (SUPPORTED_ESSENCE[mEssenceIndex].frame_layout == MXF_MIXED_FIELDS) {
                 mVideoLineMap[0] -= SUPPORTED_ESSENCE[mEssenceIndex].avid_display_y_offset / 2;
                 mVideoLineMap[1] -= SUPPORTED_ESSENCE[mEssenceIndex].avid_display_y_offset / 2;
