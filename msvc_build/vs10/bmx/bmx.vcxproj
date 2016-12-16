@@ -44,7 +44,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.;..;..\..\..\include;..\..\..\..\libMXF++;..\..\..\..\libMXF;..\..\..\..\uriparser\include;..\..\..\..\expat\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..;..\..\..\include;..\..\..\..\ebu-libMXFpp;..\..\..\..\ebu-libMXF;..\..\..\..\uriparser\include;..\..\..\..\expat\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -62,7 +62,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;..;..\..\..\include;..\..\..\..\libMXF++;..\..\..\..\libMXF;..\..\..\..\uriparser\include;..\..\..\..\expat\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;..;..\..\..\include;..\..\..\..\ebu-libMXFpp;..\..\..\..\ebu-libMXF;..\..\..\..\uriparser\include;..\..\..\..\expat\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
@@ -467,11 +467,11 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\libMXF++\msvc_build\vs10\libMXF++\libMXF++.vcxproj">
+    <ProjectReference Include="..\..\..\..\ebu-libMXFpp\msvc_build\vs10\libMXF++\libMXF++.vcxproj">
       <Project>{33e3c49f-5483-4081-9446-9238a59b761a}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="..\..\..\..\libMXF\msvc_build\vs10\mxf\libMXF.vcxproj">
+    <ProjectReference Include="..\..\..\..\ebu-libMXF\msvc_build\vs10\mxf\libMXF.vcxproj">
       <Project>{580f8e65-f910-46a6-8a9c-6a8e58d95e53}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>

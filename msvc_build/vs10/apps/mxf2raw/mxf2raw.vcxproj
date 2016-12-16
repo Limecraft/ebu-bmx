@@ -47,7 +47,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\;..\..\..\..\apps\mxf2raw;..\..\..\..\..\libMXF;..\..\..\..\..\libMXF++;..\..\..\..\..\uriparser\include;..\..\..\..\include;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\;..\..\..\..\apps\mxf2raw;..\..\..\..\..\ebu-libMXF;..\..\..\..\..\ebu-libMXFpp;..\..\..\..\..\uriparser\include;..\..\..\..\include;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -59,7 +59,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>libMXF.lib;libMXF++.lib;uriparser.lib;expat.lib;bmx.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\..\..\..\libMXF\msvc_build\vs10\mxf\Debug;..\..\..\..\..\libMXF++\msvc_build\vs10\libMXF++\Debug;..\..\uriparser\Debug;..\..\bmx\Debug;..\..\expat\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\..\..\ebu-libMXF\msvc_build\vs10\mxf\Debug;..\..\..\..\..\ebu-libMXFpp\msvc_build\vs10\libMXF++\Debug;..\..\uriparser\Debug;..\..\bmx\Debug;..\..\expat\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
@@ -67,7 +67,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\;..\..\..\..\apps\mxf2raw;..\..\..\..\..\libMXF;..\..\..\..\..\libMXF++;..\..\..\..\..\uriparser\include;..\..\..\..\include;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\;..\..\..\..\apps\mxf2raw;..\..\..\..\..\ebu-libMXF;..\..\..\..\..\ebu-libMXFpp;..\..\..\..\..\uriparser\include;..\..\..\..\include;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PrecompiledHeader>
@@ -77,7 +77,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>libMXF.lib;libMXF++.lib;uriparser.lib;expat.lib;bmx.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\..\..\..\libMXF\msvc_build\vs10\mxf\Release;..\..\..\..\..\libMXF++\msvc_build\vs10\libMXF++\Release;..\..\uriparser\Release;..\..\bmx\Release;..\..\expat\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\..\..\ebu-libMXF\msvc_build\vs10\mxf\Release;..\..\..\..\..\ebu-libMXFpp\msvc_build\vs10\libMXF++\Release;..\..\uriparser\Release;..\..\bmx\Release;..\..\expat\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
