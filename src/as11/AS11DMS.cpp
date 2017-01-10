@@ -53,6 +53,16 @@ void AS11DMS::RegisterExtensions(HeaderMetadata *header_metadata)
 
     DataModel *data_model = header_metadata->getDataModel();
 
+    RegisterExtensions(data_model);
+
+    AS11CoreFramework::RegisterObjectFactory(header_metadata);
+    AS11SegmentationFramework::RegisterObjectFactory(header_metadata);
+}
+
+void AS11DMS::RegisterExtensions(DataModel *data_model)
+{
+    // register AS-11 framework set and items in data model
+
 #define MXF_LABEL(d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15) \
     {d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15}
 
@@ -66,8 +76,4 @@ void AS11DMS::RegisterExtensions(HeaderMetadata *header_metadata)
 
     data_model->finalise();
 
-
-    AS11CoreFramework::RegisterObjectFactory(header_metadata);
-    AS11SegmentationFramework::RegisterObjectFactory(header_metadata);
 }
-

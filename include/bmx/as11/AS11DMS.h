@@ -67,6 +67,7 @@ class AS11DMS
 {
 public:
     static void RegisterExtensions(mxfpp::HeaderMetadata *header_metadata);
+    static void RegisterExtensions(mxfpp::DataModel *data_model);
 };
 
 
